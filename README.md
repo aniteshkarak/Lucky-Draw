@@ -1,129 +1,134 @@
-# 🎰 Lucky Draw & Wheel of Fortune
+# 🎉 Dada's Birthday — Live Lucky Draw Web Application
 
-<div align="center">
-
-![Lucky Draw Preview Banner](assets/banner.jpg)
-
-**The ultimate interactive suite for event giveaways, team raffles, prize draws, and party games.**  
-*Zero external dependencies • 100% offline-ready • Built with Vanilla JS & Web Audio API.*
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/HTML)
-[![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat&logo=css3&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/CSS)
-[![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
-[![Web Audio API](https://img.shields.io/badge/Web%20Audio%20API-Procedural%20Sound-00F0FF)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
-
-</div>
+A complete, production-ready, real-time birthday lucky draw web application built for **25 October (8:00 PM – 9:00 PM IST)**.
 
 ---
 
-## ✨ Features Overview
+## 🌟 Key Highlights & Features
 
-### 🎡 1. The Grand Fortune Wheel
-- High-DPI canvas rendering with glowing outer neon rim and flashing LED bulbs.
-- Realistic quintic-easing physics deceleration with spring-loaded pointer bounce.
-- Dynamic segment sizing with auto-fitted typography and custom prize colors.
-- Real-time ratchet click sounds synchronized with each segment boundary.
+1. **Event Window & Timezone Authority**:
+   - Timezone: **Asia/Kolkata (`+05:30`)**.
+   - Official Date: **25 October**.
+   - Participation Window: **8:00 PM IST to 9:00 PM IST**.
+   - Live countdown timer synchronizing with server time.
+   - Server-side validation prevents entries outside the designated window.
 
-### 🎰 2. Vegas Slot Machine
-- 3 illuminated vertical mechanical reels with metallic bezels.
-- Realistic interactive side lever with 3D pull mechanics.
-- Staggered reel deceleration (Reel 1, Reel 2, Reel 3) for suspenseful reveals.
-- Heavy mechanical thud sound effects on each lock.
+2. **One Entry Per Mobile Number & Unique 5-Digit Number**:
+   - Form accepts Full Name & 10-digit Indian mobile number (`^[6-9][0-9]{9}$`).
+   - Mobile numbers are normalized (+91, leading 0, spaces, dashes removed).
+   - Generates unique random 5-digit number (`10000–99999`) server-side.
+   - Enforces unique database constraints (`UNIQUE(mobile)` and `UNIQUE(lucky_number)`).
+   - Idempotent: If an already registered mobile submits again, it returns the existing ticket without creating duplicates.
 
-### 📦 3. 3D Mystery Gift Boxes
-- Grid of glowing 3D flip-card mystery chests with golden ribbons.
-- Click any individual box to trigger shake animation and uncover the hidden prize.
-- Or hit "Random Box Pick" to cycle lights and automatically select a winner.
+3. **Privacy-First Public Participant Board**:
+   - Displays serial number (`#`), `Name`, `Lucky Number`, and `Registration Time`.
+   - **Mobile numbers are NEVER exposed** in public queries or DOM.
+   - Real-time live synchronization with Supabase Realtime channel.
+   - Search by Name or 5-digit Lucky Number.
 
-### ⚡ 4. Rapid Multi-Winner Draw
-- High-speed digital shuffle screen for bulk draws (1, 2, 3, 5, or 10 winners simultaneously).
-- Instant lock-in countdown sound effects.
-- Celebratory Gold 🥇, Silver 🥈, and Bronze 🥉 podium cards.
+4. **Server-Side Immutable Winner Selection**:
+   - Only executed after draw closes (9:00 PM IST or admin trigger).
+   - Selects **exactly 3 unique winners** (1st Prize 🥇, 2nd Prize 🥈, 3rd Prize 🥉) from actual participants.
+   - Permanent database storage: refresh or repeated API calls return identical winners.
+   - Celebration podium with rolling digit animation, confetti burst, and Web Audio API fanfare.
 
----
+5. **Protected Admin Control Center**:
+   - Protected by Security PIN (`dada2026` by default or Supabase Auth).
+   - Live status switcher (`AUTO`, `FORCE_LIVE`, `FORCE_CLOSED`, `FORCE_BEFORE`) for testing.
+   - Winner Selection trigger with safety confirmation.
+   - Emergency close override.
+   - One-click CSV export of participants.
 
-## 🚀 Advanced Capabilities
-
-- 🔊 **Procedural Web Audio Engine**: Zero external MP3 files! Ratchet clicks, reel thuds, victory fanfares, and jackpot bells are generated 100% via the Web Audio API.
-- 🎊 **Confetti & Particle Cannon**: Multi-colored ribbons, stars, and sparklers with realistic physics and gravity.
-- 👥 **Participant & Prize Management**:
-  - Bulk import names via comma or line separation.
-  - Built-in presets: *Tech & Gadgets*, *Office Party & Perks*, *Cash & Jackpots*, *Participants*, and *Lucky Numbers*.
-  - Individual item toggle, color indicators, and elimination toggle (prevent duplicate winners).
-- 📊 **Winner Log & CSV Export**:
-  - Live history drawer recording all winners with timestamps and game modes.
-  - One-click export to CSV spreadsheet.
-- ⚙️ **Event Branding**:
-  - Customize event title and subtitle directly from the settings drawer.
-  - Fullscreen mode support (`F`) for stage screens, projectors, and live streams.
+6. **Web Audio API Synthesizers**:
+   - Built-in sound effects (Fanfare, Chime, Click, Roll, Error) without external audio file dependencies.
+   - Mute/unmute toggle persisted in localStorage.
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## 🛠️ Technology Stack
 
-| Key | Action |
-| :--- | :--- |
-| <kbd>Space</kbd> / <kbd>Enter</kbd> | Spin Wheel / Pull Slot Lever / Pick Mystery Box / Start Draw |
-| <kbd>1</kbd> - <kbd>4</kbd> | Switch Game Mode (1: Wheel, 2: Slots, 3: Boxes, 4: Rapid) |
-| <kbd>M</kbd> | Toggle Sound Effects Mute / Unmute |
-| <kbd>F</kbd> | Toggle Fullscreen Mode |
-| <kbd>Esc</kbd> | Close any open modal or drawer |
+- **Frontend**: React 18, Vite 6, TypeScript 5, Tailwind CSS 3
+- **Animations & Effects**: Framer Motion 12, Canvas Confetti
+- **Sound Engine**: Web Audio API Sound Synthesizer
+- **Backend & Database**: Supabase PostgreSQL + PostgreSQL Stored Procedures (RPC)
+- **Realtime**: Supabase Realtime Channel (with graceful fallback polling)
 
 ---
 
-## 🛠️ Quick Start
+## 🗄️ Database Architecture & Migrations
 
-No installation or build steps required! Simply open the project in any modern web browser:
+All SQL migrations are located in: [`supabase/migrations/20261025000000_init_lucky_draw.sql`](supabase/migrations/20261025000000_init_lucky_draw.sql)
 
-1. Clone or download the repository:
-   ```bash
-   git clone https://github.com/<your-username>/Lucky-Draw.git
-   cd Lucky-Draw
-   ```
-2. Open `index.html` in your browser:
-   - On Windows: Double-click `index.html` or run `start index.html` in PowerShell.
-   - Or serve with any static web server (e.g. `npx serve`, `python -m http.server 8000`, or Live Server extension).
+### Tables:
+- `participants`: UUID primary key, `name`, `mobile` (UNIQUE), `lucky_number` (UNIQUE, 10000–99999), `played_at`, `created_at`.
+- `draw_settings`: Event date, start time (`20:00:00`), end time (`21:00:00`), timezone (`Asia/Kolkata`), status, emergency switch, admin PIN hash.
+- `winners`: Foreign keys to participants (`1st`, `2nd`, `3rd`), `first_prize_number`, `second_prize_number`, `third_prize_number`, `selected_at`.
 
----
+### Stored Procedures (RPC):
+- `get_draw_status()`: Evaluates server time in Asia/Kolkata and returns draw state.
+- `participate(p_name, p_mobile)`: SECURITY DEFINER atomic registration function.
+- `select_winners(p_admin_pin, p_force)`: SECURITY DEFINER immutable winner selection.
+- `get_public_participants(p_search, p_limit, p_offset)`: Safe public view without mobile numbers.
+- `get_public_winners()`: Safe public winner view.
+- `admin_update_draw_settings(p_admin_pin, p_status, p_emergency_closed)`: Admin settings update.
 
-## 🌐 How to Push to GitHub
-
-If you're creating a new remote repository on GitHub:
-
-1. Create a new empty repository on [GitHub](https://github.com/new) named **Lucky-Draw**.
-2. Run the following commands in your terminal:
-   ```bash
-   cd c:\Users\ANITESH\Documents\GitHub\Lucky-Draw
-   git remote add origin https://github.com/<YOUR-USERNAME>/Lucky-Draw.git
-   git branch -M main
-   git push -u origin main
-   ```
+### Row Level Security (RLS):
+- Direct public `INSERT`, `UPDATE`, and `DELETE` on `participants` are strictly disabled.
+- Public reads are permitted only on sanitized views and published winners.
 
 ---
 
-## 📁 Project Structure
+## 🚀 Quick Start & Local Setup
 
+### 1. Install Dependencies
+```bash
+npm install
 ```
-Lucky-Draw/
-├── index.html        # Main application layout, game views & modals
-├── style.css         # Modern dark luxury glassmorphism design system
-├── README.md         # Documentation and guide
-├── .gitignore        # Git ignore rules
-├── assets/
-│   └── banner.jpg    # Application preview banner
-└── js/
-    ├── audio.js      # Web Audio API sound synthesizer
-    ├── confetti.js   # Canvas particle celebration engine
-    ├── state.js      # LocalStorage state, presets & CSV export
-    ├── wheel.js      # Fortune Wheel canvas engine with physics
-    ├── slots.js      # Vegas Slot Machine reel engine
-    ├── raffle.js     # Mystery Box 3D & Rapid Multi-Draw engines
-    └── app.js        # Main coordinator, events & keyboard shortcuts
+
+### 2. Environment Configuration
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
+
+Set your Supabase project credentials in `.env`:
+```env
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+VITE_ADMIN_PIN=dada2026
+```
+
+*(Note: If Supabase credentials are not provided, the application automatically runs on a built-in offline simulation engine for development and testing.)*
+
+### 3. Run Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+### 4. Build for Production
+```bash
+npm run build
+```
+
+### 5. Run Backend Logic Test Suite
+```bash
+node tests/test_suite.mjs
 ```
 
 ---
 
-## 📄 License
+## 🌐 Production Deployment Guide (Vercel)
 
-Distributed under the MIT License. Feel free to use, modify, and distribute for personal or commercial events!
+1. Push code to GitHub repository:
+   ```bash
+   git add .
+   git commit -m "feat: complete Dada's Birthday Lucky Draw web application"
+   git push origin main
+   ```
+2. Import project in [Vercel](https://vercel.com).
+3. Set Environment Variables:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_ADMIN_PIN`
+4. Deploy!

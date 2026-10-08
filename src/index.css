@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg: #090810;
+    --color-card: rgba(22, 20, 36, 0.75);
+    --color-card-border: rgba(245, 181, 22, 0.2);
+    --color-gold: #f5b516;
+    --color-gold-light: #ffd054;
+    --color-gold-dark: #b46e09;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: #fafaf9;
+    font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3, .font-serif-luxury {
+    font-family: 'Cormorant', 'Cinzel', Georgia, serif;
+    letter-spacing: -0.01em;
+  }
+
+  /* Custom smooth scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0d0c14;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(245, 181, 22, 0.35);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(245, 181, 22, 0.65);
+  }
+}
+
+/* Luxury celebratory effects */
+.glass-panel {
+  background: rgba(20, 18, 34, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 181, 22, 0.18);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+.glass-panel-glow {
+  background: rgba(24, 21, 42, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(245, 181, 22, 0.35);
+  box-shadow: 0 0 30px rgba(245, 181, 22, 0.15), 0 20px 50px rgba(0, 0, 0, 0.7);
+}
+
+.gold-text-gradient {
+  background: linear-gradient(135deg, #fff7d6 0%, #ffd054 35%, #f5b516 70%, #d9940b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gold-button-gradient {
+  background: linear-gradient(135deg, #ffd054 0%, #f5b516 50%, #d9940b 100%);
+  color: #0b0a10;
+  box-shadow: 0 8px 24px rgba(245, 181, 22, 0.35);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gold-button-gradient:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(245, 181, 22, 0.5);
+  filter: brightness(1.08);
+}
+
+.gold-button-gradient:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Ticket perforated pattern */
+.ticket-card {
+  position: relative;
+  background: linear-gradient(145deg, #1e1a38 0%, #121024 100%);
+  border: 2px solid #f5b516;
+  box-shadow: 0 0 35px rgba(245, 181, 22, 0.3);
+}
+
+.ticket-notch-left {
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  background: #090810;
+  border-radius: 50%;
+  border-right: 2px solid #f5b516;
+}
+
+.ticket-notch-right {
+  position: absolute;
+  right: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  background: #090810;
+  border-radius: 50%;
+  border-left: 2px solid #f5b516;
+}
+
+/* Subtle Background Aurora */
+.aurora-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: 
+    radial-gradient(circle at 15% 15%, rgba(245, 181, 22, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 25%, rgba(107, 17, 48, 0.18) 0%, transparent 45%),
+    radial-gradient(circle at 50% 80%, rgba(42, 27, 78, 0.3) 0%, transparent 55%);
+}

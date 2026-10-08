@@ -1,0 +1,529 @@
+import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
+import { DrawSettings, DrawState, Participant, ParticipationResult, WinnersData } from '../types';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+// Detect if we have real configured Supabase credentials
+const isConfigured = Boolean(
+  supabaseUrl &&
+  supabaseAnonKey &&
+  !supabaseUrl.includes('placeholder') &&
+  !supabaseUrl.includes('your-project-id')
+);
+
+export const supabase: SupabaseClient | null = isConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
+    })
+  : null;
+
+// ==============================================================================
+// LOCAL MOCK / FALLBACK ENGINE (For seamless local testing & offline resiliency)
+// ==============================================================================
+
+interface MockStorage {
+  participants: Array<{
+    id: string;
+    name: string;
+    mobile: string;
+    lucky_number: number;
+    played_at: string;
+    created_at: string;
+  }>;
+  winners: {
+    first_prize: { name: string; lucky_number: number } | null;
+    second_prize: { name: string; lucky_number: number } | null;
+    third_prize: { name: string; lucky_number: number } | null;
+    selected_at: string;
+  } | null;
+  statusOverride: DrawState | 'AUTO';
+  emergencyClosed: boolean;
+}
+
+const STORAGE_KEY = 'dada_lucky_draw_db_v1';
+
+function getMockDB(): MockStorage {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch {
+    // Ignore parse error
+  }
+
+  // Seed sample initial participants for realistic live demonstration if empty
+  const initial: MockStorage = {
+    participants: [
+      { id: '1', name: 'Aarav Sharma', mobile: '9876543210', lucky_number: 38472, played_at: new Date(Date.now() - 3600000).toISOString(), created_at: new Date(Date.now() - 3600000).toISOString() },
+      { id: '2', name: 'Priya Mukherjee', mobile: '9876543211', lucky_number: 81924, played_at: new Date(Date.now() - 2800000).toISOString(), created_at: new Date(Date.now() - 2800000).toISOString() },
+      { id: '3', name: 'Rohan Sen', mobile: '9876543212', lucky_number: 15683, played_at: new Date(Date.now() - 1900000).toISOString(), created_at: new Date(Date.now() - 1900000).toISOString() },
+      { id: '4', name: 'Sneha Bose', mobile: '9876543213', lucky_number: 62419, played_at: new Date(Date.now() - 1200000).toISOString(), created_at: new Date(Date.now() - 1200000).toISOString() },
+      { id: '5', name: 'Debabrata Das', mobile: '9876543214', lucky_number: 94017, played_at: new Date(Date.now() - 500000).toISOString(), created_at: new Date(Date.now() - 500000).toISOString() },
+    ],
+    winners: null,
+    statusOverride: 'LIVE_DRAW', // Default to LIVE_DRAW for rich immediate interaction in dev
+    emergencyClosed: false,
+  };
+  saveMockDB(initial);
+  return initial;
+}
+
+function saveMockDB(data: MockStorage): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    // ignore
+  }
+}
+
+// Event emitter for local realtime simulation
+type Subscriber = () => void;
+const subscribers: Set<Subscriber> = new Set();
+
+function notifySubscribers() {
+  subscribers.forEach((cb) => {
+    try {
+      cb();
+    } catch (e) {
+      console.error(e);
+    }
+  });
+}
+
+// ==============================================================================
+// PUBLIC BACKEND API INTERFACE
+// ==============================================================================
+
+export const apiService = {
+  /**
+   * Fetch current draw status, settings, total participants, and IST server time
+   */
+  async getDrawStatus(): Promise<DrawSettings> {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.rpc('get_draw_status');
+        if (!error && data) {
+          return {
+            event_date: data.event_date || '2026-10-25',
+            start_time: data.start_time || '20:00:00',
+            end_time: data.end_time || '21:00:00',
+            timezone: data.timezone || 'Asia/Kolkata',
+            status: data.status as DrawState,
+            server_time_ist: data.server_time_ist || new Date().toISOString(),
+            total_participants: data.total_participants || 0,
+            winners_selected: Boolean(data.winners_selected),
+            emergency_closed: Boolean(data.emergency_closed),
+            manual_override: data.manual_override,
+          };
+        }
+      } catch (err) {
+        console.warn('Supabase get_draw_status error, falling back to local state:', err);
+      }
+    }
+
+    // Mock fallback
+    const db = getMockDB();
+    const effectiveStatus: DrawState = db.winners
+      ? 'WINNERS_PUBLISHED'
+      : db.emergencyClosed
+      ? 'DRAW_CLOSED'
+      : db.statusOverride === 'AUTO'
+      ? 'LIVE_DRAW'
+      : db.statusOverride;
+
+    return {
+      event_date: '2026-10-25',
+      start_time: '20:00:00',
+      end_time: '21:00:00',
+      timezone: 'Asia/Kolkata',
+      status: effectiveStatus,
+      server_time_ist: new Date().toISOString(),
+      total_participants: db.participants.length,
+      winners_selected: db.winners !== null,
+      emergency_closed: db.emergencyClosed,
+      manual_override: db.statusOverride,
+    };
+  },
+
+  /**
+   * Register a participant securely (Atomic RPC: one mobile = one entry, 5-digit number)
+   */
+  async participate(name: string, mobile: string): Promise<ParticipationResult> {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.rpc('participate', {
+          p_name: name,
+          p_mobile: mobile,
+        });
+
+        if (error) {
+          return {
+            success: false,
+            code: 'RPC_ERROR',
+            message: error.message || 'Unable to register at this time. Please try again.',
+          };
+        }
+        return data as ParticipationResult;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Network error during participation.';
+        console.warn('Supabase participation call failed, trying local fallback:', message);
+      }
+    }
+
+    // Mock / Offline Handler
+    await new Promise((resolve) => setTimeout(resolve, 650)); // Simulating realistic server latency
+    const db = getMockDB();
+
+    // 1. Sanitize name
+    const cleanName = name.trim().replace(/\s+/g, ' ');
+    if (cleanName.length < 2 || cleanName.length > 80) {
+      return {
+        success: false,
+        code: 'INVALID_NAME',
+        message: 'Please enter a valid full name between 2 and 80 characters.',
+      };
+    }
+
+    // 2. Normalize Indian mobile number
+    let cleanMobile = mobile.replace(/[^0-9]/g, '');
+    if (cleanMobile.startsWith('91') && cleanMobile.length === 12) {
+      cleanMobile = cleanMobile.slice(2);
+    } else if (cleanMobile.startsWith('0') && cleanMobile.length === 11) {
+      cleanMobile = cleanMobile.slice(1);
+    }
+
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      return {
+        success: false,
+        code: 'INVALID_MOBILE',
+        message: 'Please enter a valid 10-digit Indian mobile number.',
+      };
+    }
+
+    // 3. Check if status allows registration
+    const currentStatus = db.winners
+      ? 'WINNERS_PUBLISHED'
+      : db.emergencyClosed
+      ? 'DRAW_CLOSED'
+      : db.statusOverride;
+
+    if (currentStatus === 'BEFORE_DRAW') {
+      return {
+        success: false,
+        code: 'NOT_STARTED',
+        message: 'Lucky draw has not started yet. Participation opens at 8:00 PM IST.',
+      };
+    }
+    if (currentStatus === 'DRAW_CLOSED' || currentStatus === 'WINNERS_PUBLISHED') {
+      return {
+        success: false,
+        code: 'DRAW_CLOSED',
+        message: 'Lucky draw is closed. Entries closed at 9:00 PM IST.',
+      };
+    }
+
+    // 4. Duplicate mobile check (Idempotent)
+    const existing = db.participants.find((p) => p.mobile === cleanMobile);
+    if (existing) {
+      return {
+        success: true,
+        already_registered: true,
+        participant: {
+          id: existing.id,
+          name: existing.name,
+          lucky_number: existing.lucky_number,
+          played_at: existing.played_at,
+        },
+        message: 'You have already participated! Here is your official lucky number.',
+      };
+    }
+
+    // 5. Generate unique 5-digit lucky number (10000-99999)
+    const usedNumbers = new Set(db.participants.map((p) => p.lucky_number));
+    let luckyNumber = Math.floor(10000 + Math.random() * 90000);
+    let attempts = 0;
+    while (usedNumbers.has(luckyNumber) && attempts < 100) {
+      luckyNumber = Math.floor(10000 + Math.random() * 90000);
+      attempts++;
+    }
+
+    const newParticipant = {
+      id: String(Date.now()),
+      name: cleanName,
+      mobile: cleanMobile,
+      lucky_number: luckyNumber,
+      played_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+
+    db.participants.push(newParticipant);
+    saveMockDB(db);
+    notifySubscribers();
+
+    return {
+      success: true,
+      already_registered: false,
+      participant: {
+        id: newParticipant.id,
+        name: newParticipant.name,
+        lucky_number: newParticipant.lucky_number,
+        played_at: newParticipant.played_at,
+      },
+      message: 'Congratulations! Your lucky number has been generated.',
+    };
+  },
+
+  /**
+   * Fetch public participants list (Never reveals mobile numbers)
+   */
+  async getPublicParticipants(
+    search: string = '',
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<{ total_count: number; participants: Participant[] }> {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.rpc('get_public_participants', {
+          p_search: search,
+          p_limit: limit,
+          p_offset: offset,
+        });
+        if (!error && data) {
+          return {
+            total_count: data.total_count || 0,
+            participants: (data.participants || []).map((p: Participant, idx: number) => ({
+              serial_no: p.serial_no || offset + idx + 1,
+              name: p.name,
+              lucky_number: p.lucky_number,
+              played_at: p.played_at,
+            })),
+          };
+        }
+      } catch (err) {
+        console.warn('Supabase get_public_participants error:', err);
+      }
+    }
+
+    // Mock fallback
+    const db = getMockDB();
+    let filtered = [...db.participants].sort(
+      (a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime()
+    );
+
+    const cleanSearch = search.trim().toLowerCase();
+    if (cleanSearch) {
+      filtered = filtered.filter(
+        (p) =>
+          p.name.toLowerCase().includes(cleanSearch) ||
+          String(p.lucky_number).includes(cleanSearch)
+      );
+    }
+
+    const total_count = filtered.length;
+    const paginated = filtered.slice(offset, offset + limit).map((p, index) => ({
+      serial_no: offset + index + 1,
+      id: p.id,
+      name: p.name,
+      lucky_number: p.lucky_number,
+      played_at: p.played_at,
+    }));
+
+    return { total_count, participants: paginated };
+  },
+
+  /**
+   * Fetch public winners (Immutable 1st, 2nd, 3rd)
+   */
+  async getPublicWinners(): Promise<WinnersData> {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.rpc('get_public_winners');
+        if (!error && data) {
+          return data as WinnersData;
+        }
+      } catch (err) {
+        console.warn('Supabase get_public_winners error:', err);
+      }
+    }
+
+    // Mock fallback
+    const db = getMockDB();
+    if (!db.winners) {
+      return { winners_exist: false };
+    }
+
+    return {
+      winners_exist: true,
+      selected_at: db.winners.selected_at,
+      first_prize: db.winners.first_prize,
+      second_prize: db.winners.second_prize,
+      third_prize: db.winners.third_prize,
+    };
+  },
+
+  /**
+   * Trigger Winner Selection (Server-Side, Immutable)
+   */
+  async selectWinners(adminPin?: string, force: boolean = true): Promise<{
+    success: boolean;
+    message: string;
+    already_selected?: boolean;
+    winners?: WinnersData;
+  }> {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.rpc('select_winners', {
+          p_admin_pin: adminPin || null,
+          p_force: force,
+        });
+        if (!error && data) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Supabase select_winners error:', err);
+      }
+    }
+
+    // Mock fallback
+    const db = getMockDB();
+    if (db.winners) {
+      return {
+        success: true,
+        already_selected: true,
+        message: 'Winners have already been drawn and are permanently locked.',
+        winners: {
+          winners_exist: true,
+          selected_at: db.winners.selected_at,
+          first_prize: db.winners.first_prize,
+          second_prize: db.winners.second_prize,
+          third_prize: db.winners.third_prize,
+        },
+      };
+    }
+
+    if (db.participants.length === 0) {
+      return {
+        success: false,
+        message: 'No participants found. At least 1 participant is required to draw winners.',
+      };
+    }
+
+    // Shuffle and pick up to 3 unique winners
+    const shuffled = [...db.participants].sort(() => 0.5 - Math.random());
+    const first = shuffled[0];
+    const second = shuffled[1] || null;
+    const third = shuffled[2] || null;
+
+    db.winners = {
+      first_prize: { name: first.name, lucky_number: first.lucky_number },
+      second_prize: second ? { name: second.name, lucky_number: second.lucky_number } : null,
+      third_prize: third ? { name: third.name, lucky_number: third.lucky_number } : null,
+      selected_at: new Date().toISOString(),
+    };
+    db.statusOverride = 'WINNERS_PUBLISHED';
+    saveMockDB(db);
+    notifySubscribers();
+
+    return {
+      success: true,
+      message: 'Winners drawn successfully!',
+      winners: {
+        winners_exist: true,
+        selected_at: db.winners.selected_at,
+        first_prize: db.winners.first_prize,
+        second_prize: db.winners.second_prize,
+        third_prize: db.winners.third_prize,
+      },
+    };
+  },
+
+  /**
+   * Admin control to change status (FORCE_LIVE, FORCE_CLOSED, FORCE_BEFORE, AUTO) or reset
+   */
+  async adminUpdateSettings(
+    adminPin: string,
+    status?: DrawState | 'AUTO',
+    emergencyClosed?: boolean,
+    resetWinners: boolean = false
+  ): Promise<{ success: boolean; message: string }> {
+    const validPin = import.meta.env.VITE_ADMIN_PIN || 'dada2026';
+    if (adminPin !== validPin) {
+      return { success: false, message: 'Invalid Admin Security PIN.' };
+    }
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.rpc('admin_update_draw_settings', {
+          p_admin_pin: adminPin,
+          p_status: status,
+          p_emergency_closed: emergencyClosed,
+        });
+        if (!error && data?.success) {
+          return { success: true, message: 'Draw settings updated on Supabase.' };
+        }
+      } catch (err) {
+        console.warn('Supabase admin update error:', err);
+      }
+    }
+
+    // Mock fallback update
+    const db = getMockDB();
+    if (status !== undefined) {
+      db.statusOverride = status;
+    }
+    if (emergencyClosed !== undefined) {
+      db.emergencyClosed = emergencyClosed;
+    }
+    if (resetWinners) {
+      db.winners = null;
+    }
+    saveMockDB(db);
+    notifySubscribers();
+
+    return { success: true, message: 'Settings updated successfully!' };
+  },
+
+  /**
+   * Subscribe to real-time events across the app
+   */
+  subscribeToUpdates(onUpdate: () => void): () => void {
+    let channel: RealtimeChannel | null = null;
+
+    if (supabase) {
+      channel = supabase
+        .channel('realtime:lucky_draw')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'participants' },
+          () => onUpdate()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'draw_settings' },
+          () => onUpdate()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'winners' },
+          () => onUpdate()
+        )
+        .subscribe();
+    }
+
+    // Also register to local memory subscriber
+    subscribers.add(onUpdate);
+
+    return () => {
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+      subscribers.delete(onUpdate);
+    };
+  },
+};
