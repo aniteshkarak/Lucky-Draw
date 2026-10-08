@@ -13,12 +13,15 @@ import {
   Settings2,
   Trash2,
   UserX,
-  Users
+  Users,
+  Calendar,
+  Zap,
+  Check
 } from 'lucide-react';
 import { DrawSettings, Participant, WinnersData, DrawState } from '../types';
 import { apiService } from '../services/supabase';
 import { soundFx } from '../utils/audio';
-import { formatPlayedAt } from '../utils/time';
+import { formatPlayedAt, formatDisplayDate } from '../utils/time';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -43,6 +46,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [showConfirmWinners, setShowConfirmWinners] = useState(false);
+
+  // Schedule Management State
+  const [scheduleDate, setScheduleDate] = useState(drawSettings.event_date || '2026-10-09');
+  const [scheduleStartTime, setScheduleStartTime] = useState(drawSettings.start_time?.slice(0, 5) || '09:00');
+  const [scheduleEndTime, setScheduleEndTime] = useState(drawSettings.end_time?.slice(0, 5) || '20:00');
+  const [autoCleanup, setAutoCleanup] = useState(drawSettings.auto_cleanup_after_end ?? true);
 
   if (!isOpen) return null;
 
@@ -138,24 +147,37 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
   };
 
-  const handleDeleteParticipant = async (participantId?: string) => {
-    if (!window.confirm('Are you sure you want to delete this participant?')) return;
+  const handleDeleteParticipant = async (participant: Participant) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete participant "${participant.name}" (#${participant.lucky_number})?`
+      )
+    ) {
+      return;
+    }
     setIsActionLoading(true);
     setErrorMsg(null);
     setSuccessMsg(null);
     soundFx.playClick();
 
     try {
-      const res = await apiService.adminDeleteParticipant(pin, participantId);
+      const res = await apiService.adminDeleteParticipant(
+        pin,
+        participant.id,
+        participant.lucky_number
+      );
       if (res.success) {
+        soundFx.playClick();
         setSuccessMsg(res.message);
         onSettingsUpdated();
       } else {
+        soundFx.playError();
         setErrorMsg(res.message);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete participant.';
       setErrorMsg(message);
+      soundFx.playError();
     } finally {
       setIsActionLoading(false);
     }
@@ -181,6 +203,63 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setErrorMsg(message);
     } finally {
       setIsActionLoading(false);
+    }
+  };
+
+  const handleSaveSchedule = async (
+    date: string,
+    start: string,
+    end: string,
+    cleanup: boolean
+  ) => {
+    setIsActionLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    soundFx.playClick();
+
+    const formattedStart = start.length === 5 ? `${start}:00` : start;
+    const formattedEnd = end.length === 5 ? `${end}:00` : end;
+
+    try {
+      const res = await apiService.adminConfigureSchedule(
+        pin,
+        date,
+        formattedStart,
+        formattedEnd,
+        cleanup
+      );
+      if (res.success) {
+        soundFx.playClick();
+        setSuccessMsg(res.message);
+        onSettingsUpdated();
+      } else {
+        soundFx.playError();
+        setErrorMsg(res.message);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update schedule.';
+      setErrorMsg(message);
+      soundFx.playError();
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleApplyPreset = (preset: 'TEST_TOMORROW' | 'OFFICIAL_WEDDING') => {
+    if (preset === 'TEST_TOMORROW') {
+      const tomorrowStr = '2026-10-09';
+      setScheduleDate(tomorrowStr);
+      setScheduleStartTime('09:00');
+      setScheduleEndTime('20:00');
+      setAutoCleanup(true);
+      handleSaveSchedule(tomorrowStr, '09:00:00', '20:00:00', true);
+    } else {
+      const weddingDate = '2026-10-25';
+      setScheduleDate(weddingDate);
+      setScheduleStartTime('20:00');
+      setScheduleEndTime('21:00');
+      setAutoCleanup(false);
+      handleSaveSchedule(weddingDate, '20:00:00', '21:00:00', false);
     }
   };
 
@@ -467,9 +546,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           </span>
                         </div>
                         <button
-                          onClick={() => handleDeleteParticipant(p.id)}
+                          onClick={() => handleDeleteParticipant(p)}
                           disabled={isActionLoading}
-                          title="Delete this participant"
+                          title={`Delete participant ${p.name}`}
                           className="p-1.5 rounded-md hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -480,7 +559,120 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 )}
               </div>
 
-              {/* Action 3: Draw Status Switcher (Testing & Overrides) */}
+              {/* Action 3: Event Schedule & Automatic Data Wipe */}
+              <div className="p-5 rounded-2xl bg-[#141224] border border-gold-500/30 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-gold-400" />
+                    <span className="text-sm font-bold text-white">Event Schedule & Auto-Wipe</span>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-gold-500/10 text-gold-300 text-[10px] font-bold border border-gold-500/30">
+                    Asia/Kolkata (IST)
+                  </span>
+                </div>
+
+                {/* Quick 1-Click Preset Buttons */}
+                <div className="space-y-1.5">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-gray-400">
+                    ⚡ Quick 1-Click Presets:
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleApplyPreset('TEST_TOMORROW')}
+                      disabled={isActionLoading}
+                      className="p-2.5 rounded-xl bg-gradient-to-r from-amber-950/60 to-gold-950/60 hover:from-amber-900/80 hover:to-gold-900/80 border border-gold-500/40 text-gold-200 text-xs font-bold text-left flex items-start gap-2 cursor-pointer transition-all"
+                    >
+                      <Zap className="w-4 h-4 text-gold-400 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-bold text-white">⚡ Tomorrow Test Schedule</div>
+                        <div className="text-[10px] text-gold-300/80 font-normal">
+                          9:00 AM – 8:00 PM IST • Auto-Wipe ON
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleApplyPreset('OFFICIAL_WEDDING')}
+                      disabled={isActionLoading}
+                      className="p-2.5 rounded-xl bg-[#18162c] hover:bg-[#201d3a] border border-rose-500/30 text-rose-200 text-xs font-bold text-left flex items-start gap-2 cursor-pointer transition-all"
+                    >
+                      <Trophy className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-bold text-white">💒 Official Wedding Day</div>
+                        <div className="text-[10px] text-rose-300/80 font-normal">
+                          25 Oct 2026 • 8:00 PM – 9:00 PM IST
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Custom Schedule Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-400 block mb-1">
+                      Event Date (YYYY-MM-DD)
+                    </label>
+                    <input
+                      type="date"
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0e0c1a] border border-gold-500/30 text-white text-xs font-mono focus:border-gold-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-400 block mb-1">
+                      Start Time (IST)
+                    </label>
+                    <input
+                      type="time"
+                      value={scheduleStartTime}
+                      onChange={(e) => setScheduleStartTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0e0c1a] border border-gold-500/30 text-white text-xs font-mono focus:border-gold-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-400 block mb-1">
+                      End Time (IST)
+                    </label>
+                    <input
+                      type="time"
+                      value={scheduleEndTime}
+                      onChange={(e) => setScheduleEndTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0e0c1a] border border-gold-500/30 text-white text-xs font-mono focus:border-gold-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Auto Data Wipe Toggle */}
+                <label className="flex items-center gap-2 p-3 rounded-xl bg-[#0e0c1a] border border-gold-500/20 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={autoCleanup}
+                    onChange={(e) => setAutoCleanup(e.target.checked)}
+                    className="w-4 h-4 rounded text-gold-500 accent-gold-500 cursor-pointer"
+                  />
+                  <div className="text-xs">
+                    <span className="font-bold text-white">
+                      Auto-delete all participants & winners when draw ends
+                    </span>
+                    <p className="text-[11px] text-gray-400">
+                      Instantly cleans test database right after {formatDisplayDate(scheduleDate)} at {scheduleEndTime} IST.
+                    </p>
+                  </div>
+                </label>
+
+                <button
+                  onClick={() => handleSaveSchedule(scheduleDate, scheduleStartTime, scheduleEndTime, autoCleanup)}
+                  disabled={isActionLoading}
+                  className="w-full py-2.5 rounded-xl bg-gold-500/20 hover:bg-gold-500/30 border border-gold-400 text-gold-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Save Custom Schedule</span>
+                </button>
+              </div>
+
+              {/* Action 4: Draw Status Switcher (Testing & Overrides) */}
               <div className="p-5 rounded-2xl bg-[#141224] border border-gold-500/20 space-y-3">
                 <div className="flex items-center gap-2">
                   <Settings2 className="w-5 h-5 text-gold-400" />

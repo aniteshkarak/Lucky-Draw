@@ -19,21 +19,22 @@ DROP TABLE IF EXISTS draw_settings CASCADE;
 -- 2. CREATE DRAW SETTINGS TABLE
 CREATE TABLE draw_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_date DATE NOT NULL DEFAULT '2026-10-25',
-    start_time TIME NOT NULL DEFAULT '20:00:00',
-    end_time TIME NOT NULL DEFAULT '21:00:00',
+    event_date DATE NOT NULL DEFAULT '2026-10-09',
+    start_time TIME NOT NULL DEFAULT '09:00:00',
+    end_time TIME NOT NULL DEFAULT '20:00:00',
     timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
     status TEXT NOT NULL DEFAULT 'SCHEDULED' CHECK (status IN ('SCHEDULED', 'LIVE', 'CLOSED', 'WINNERS_PUBLISHED', 'BEFORE_DRAW', 'LIVE_DRAW', 'DRAW_CLOSED')),
     allow_manual_override BOOLEAN NOT NULL DEFAULT false,
     emergency_closed BOOLEAN NOT NULL DEFAULT false,
+    auto_cleanup_after_end BOOLEAN NOT NULL DEFAULT true,
     admin_pin_hash TEXT NOT NULL DEFAULT crypt('dada2026', gen_salt('bf')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Seed initial production draw settings
-INSERT INTO draw_settings (event_date, start_time, end_time, timezone, status)
-VALUES ('2026-10-25', '20:00:00', '21:00:00', 'Asia/Kolkata', 'SCHEDULED');
+-- Seed initial production draw settings (Defaulting to 9:00 AM - 8:00 PM IST test schedule)
+INSERT INTO draw_settings (event_date, start_time, end_time, timezone, status, auto_cleanup_after_end)
+VALUES ('2026-10-09', '09:00:00', '20:00:00', 'Asia/Kolkata', 'SCHEDULED', true);
 
 -- 3. CREATE PARTICIPANTS TABLE
 CREATE TABLE participants (
@@ -124,6 +125,15 @@ BEGIN
     v_current_time := v_now_ist::TIME;
     v_current_date := v_now_ist::DATE;
 
+    -- Automatic Data Cleanup: If past end time and auto_cleanup_after_end is true, wipe test participants & winners
+    IF v_settings.auto_cleanup_after_end AND 
+       (v_current_date > v_settings.event_date OR (v_current_date = v_settings.event_date AND v_current_time >= v_settings.end_time)) THEN
+        IF EXISTS (SELECT 1 FROM participants) OR EXISTS (SELECT 1 FROM winners) THEN
+            DELETE FROM winners;
+            DELETE FROM participants;
+        END IF;
+    END IF;
+
     SELECT COUNT(*) INTO v_total_participants FROM participants;
     SELECT EXISTS(SELECT 1 FROM winners) INTO v_winners_exist;
 
@@ -164,6 +174,7 @@ BEGIN
         'total_participants', v_total_participants,
         'winners_selected', v_winners_exist,
         'emergency_closed', v_settings.emergency_closed,
+        'auto_cleanup_after_end', v_settings.auto_cleanup_after_end,
         'manual_override', v_settings.status
     );
 END;
@@ -453,6 +464,7 @@ BEGIN
         
         SELECT jsonb_agg(
             jsonb_build_object(
+                'id', sub.id,
                 'serial_no', sub.serial_no,
                 'name', sub.name,
                 'lucky_number', sub.lucky_number,
@@ -461,6 +473,7 @@ BEGIN
         ) INTO v_list
         FROM (
             SELECT 
+                id,
                 ROW_NUMBER() OVER (ORDER BY played_at ASC) as serial_no,
                 name,
                 lucky_number,
@@ -477,6 +490,7 @@ BEGIN
 
         SELECT jsonb_agg(
             jsonb_build_object(
+                'id', sub.id,
                 'serial_no', sub.serial_no,
                 'name', sub.name,
                 'lucky_number', sub.lucky_number,
@@ -485,6 +499,7 @@ BEGIN
         ) INTO v_list
         FROM (
             SELECT 
+                id,
                 ROW_NUMBER() OVER (ORDER BY played_at ASC) as serial_no,
                 name,
                 lucky_number,
@@ -573,6 +588,41 @@ BEGIN
     END IF;
 
     RETURN jsonb_build_object('success', true, 'message', 'Draw settings updated successfully.');
+END;
+$$;
+
+-- G. Admin Configure Schedule & Auto-Cleanup Function
+CREATE OR REPLACE FUNCTION admin_configure_schedule(
+    p_admin_pin TEXT,
+    p_event_date DATE,
+    p_start_time TIME,
+    p_end_time TIME,
+    p_auto_cleanup BOOLEAN DEFAULT true
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_settings RECORD;
+BEGIN
+    SELECT * INTO v_settings FROM draw_settings LIMIT 1;
+    IF v_settings.admin_pin_hash IS NULL OR crypt(p_admin_pin, v_settings.admin_pin_hash) != v_settings.admin_pin_hash THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Unauthorized: Invalid Admin PIN');
+    END IF;
+
+    UPDATE draw_settings 
+    SET event_date = p_event_date,
+        start_time = p_start_time,
+        end_time = p_end_time,
+        auto_cleanup_after_end = p_auto_cleanup,
+        updated_at = now();
+
+    RETURN jsonb_build_object(
+        'success', true, 
+        'message', 'Schedule updated to ' || p_event_date::TEXT || ' (' || p_start_time::TEXT || ' to ' || p_end_time::TEXT || ' IST) with Auto-Wipe: ' || CASE WHEN p_auto_cleanup THEN 'ENABLED' ELSE 'DISABLED' END
+    );
 END;
 $$;
 

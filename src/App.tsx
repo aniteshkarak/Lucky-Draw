@@ -14,8 +14,7 @@ import { DrawSettings, Participant, WinnersData } from './types';
 import { apiService } from './services/supabase';
 import {
   calculateTimeRemaining,
-  getEventStartTime,
-  getEventEndTime,
+  parseISTDate,
   TimeRemaining,
 } from './utils/time';
 
@@ -66,7 +65,7 @@ export const App: React.FC = () => {
     try {
       const [settings, partData, winData] = await Promise.all([
         apiService.getDrawStatus(),
-        apiService.getPublicParticipants('', 100, 0),
+        apiService.getPublicParticipants('', 1000, 0),
         apiService.getPublicWinners(),
       ]);
 
@@ -109,10 +108,10 @@ export const App: React.FC = () => {
       let target: Date;
 
       if (drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED') {
-        target = getEventStartTime();
+        target = parseISTDate(drawSettings.event_date, drawSettings.start_time);
       } else {
         // LIVE, LIVE_DRAW or other
-        target = getEventEndTime();
+        target = parseISTDate(drawSettings.event_date, drawSettings.end_time);
       }
 
       const remaining = calculateTimeRemaining(target);
@@ -122,7 +121,7 @@ export const App: React.FC = () => {
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, [drawSettings.status]);
+  }, [drawSettings.status, drawSettings.event_date, drawSettings.start_time, drawSettings.end_time]);
 
   const handleParticipationSuccess = (
     participant: { name: string; lucky_number: number; played_at: string },
@@ -162,9 +161,13 @@ export const App: React.FC = () => {
     }
   };
 
-  const countdownText = `${String(timeRemaining.hours).padStart(2, '0')}:${String(
-    timeRemaining.minutes
-  ).padStart(2, '0')}:${String(timeRemaining.seconds).padStart(2, '0')}`;
+  const countdownText =
+    timeRemaining.days > 0
+      ? `${timeRemaining.days}d ${timeRemaining.hours}h ${timeRemaining.minutes}m ${timeRemaining.seconds}s`
+      : `${String(timeRemaining.hours).padStart(2, '0')}:${String(timeRemaining.minutes).padStart(
+          2,
+          '0'
+        )}:${String(timeRemaining.seconds).padStart(2, '0')}`;
 
   const isLive = drawSettings.status === 'LIVE_DRAW' || drawSettings.status === 'LIVE';
   const isBefore = drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED';
@@ -182,7 +185,7 @@ export const App: React.FC = () => {
           isLive
             ? '🔴 LIVE DRAW'
             : isBefore
-            ? 'Starts 8:00 PM IST'
+            ? 'Draw Scheduled'
             : isWinners
             ? '🏆 Winners Declared'
             : 'Draw Closed'
@@ -199,6 +202,9 @@ export const App: React.FC = () => {
           status={drawSettings.status}
           timeRemaining={timeRemaining}
           totalParticipants={totalCount}
+          eventDate={drawSettings.event_date}
+          startTime={drawSettings.start_time}
+          endTime={drawSettings.end_time}
           onCtaClick={handleCtaClick}
         />
 

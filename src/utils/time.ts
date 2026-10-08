@@ -17,6 +17,68 @@ export const EVENT_CONFIG = {
 };
 
 /**
+ * Parses an IST date string (YYYY-MM-DD) and time string (HH:MM:SS) into a UTC JavaScript Date
+ */
+export function parseISTDate(dateStr?: string, timeStr?: string): Date {
+  const safeDate = dateStr || '2026-10-09';
+  const safeTime = timeStr || '20:00:00';
+  const [year, month, day] = safeDate.split('-').map(Number);
+  const [hour, min, sec] = safeTime.split(':').map(Number);
+
+  // IST is UTC+5:30 -> Convert IST components to UTC
+  const istMinutes = (hour || 0) * 60 + (min || 0);
+  const utcMinutes = istMinutes - 330; // 5 hours 30 mins
+
+  const utcHour = Math.floor(((utcMinutes + 1440) % 1440) / 60);
+  const utcMin = ((utcMinutes + 1440) % 1440) % 60;
+  const dayOffset = utcMinutes < 0 ? -1 : utcMinutes >= 1440 ? 1 : 0;
+
+  return new Date(Date.UTC(year, (month || 1) - 1, (day || 1) + dayOffset, utcHour, utcMin, sec || 0));
+}
+
+/**
+ * Formats a YYYY-MM-DD date into friendly text (e.g. "9 October 2026")
+ */
+export function formatDisplayDate(dateStr?: string): string {
+  if (!dateStr) return '25 October 2026';
+  try {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    return date.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+/**
+ * Formats HH:MM:SS time into friendly 12h format (e.g. "9:00 AM", "8:00 PM")
+ */
+export function formatDisplayTime(timeStr?: string): string {
+  if (!timeStr) return '8:00 PM';
+  try {
+    const [hour, min] = timeStr.split(':').map(Number);
+    const h = hour % 12 || 12;
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const m = min ? `:${String(min).padStart(2, '0')}` : ':00';
+    return `${h}${m} ${ampm}`;
+  } catch {
+    return timeStr;
+  }
+}
+
+/**
+ * Formats start and end times into a friendly range (e.g. "9:00 AM – 8:00 PM IST")
+ */
+export function formatTimeRange(startTime?: string, endTime?: string): string {
+  return `${formatDisplayTime(startTime || '09:00:00')} – ${formatDisplayTime(endTime || '20:00:00')} IST`;
+}
+
+/**
  * Returns the current date/time in Asia/Kolkata timezone
  */
 export function getNowInIST(): Date {
@@ -29,17 +91,14 @@ export function getNowInIST(): Date {
  * Returns the target Start Date object in IST
  */
 export function getEventStartTime(): Date {
-  // 25 October 20:00:00 IST -> 14:30:00 UTC
-  // UTC Month for Oct is 9
-  return new Date(Date.UTC(EVENT_CONFIG.EVENT_YEAR, EVENT_CONFIG.EVENT_MONTH, EVENT_CONFIG.EVENT_DAY, 14, 30, 0));
+  return parseISTDate(EVENT_CONFIG.EVENT_YEAR + '-10-' + EVENT_CONFIG.EVENT_DAY, '20:00:00');
 }
 
 /**
  * Returns the target End Date object in IST
  */
 export function getEventEndTime(): Date {
-  // 25 October 21:00:00 IST -> 15:30:00 UTC
-  return new Date(Date.UTC(EVENT_CONFIG.EVENT_YEAR, EVENT_CONFIG.EVENT_MONTH, EVENT_CONFIG.EVENT_DAY, 15, 30, 0));
+  return parseISTDate(EVENT_CONFIG.EVENT_YEAR + '-10-' + EVENT_CONFIG.EVENT_DAY, '21:00:00');
 }
 
 export interface TimeRemaining {

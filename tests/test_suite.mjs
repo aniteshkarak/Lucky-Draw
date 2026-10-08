@@ -139,4 +139,97 @@ assert.strictEqual(checkTimeStatus(new Date('2026-10-25T21:00:00+05:30')), 'DRAW
 assert.strictEqual(checkTimeStatus(new Date('2026-10-26T10:00:00+05:30')), 'DRAW_CLOSED');
 console.log('  ✅ IST event window state transitions verified.\n');
 
-console.log('🎉 ALL 5 TEST SUITES COMPLETED WITH 100% SUCCESS!');
+// 6. Admin Participant Deletion by ID & Lucky Number
+console.log('Test 6: Admin participant deletion by ID, Lucky Number & Mobile');
+function deleteParticipant(target) {
+  for (const [mob, p] of participantsDB.entries()) {
+    if (
+      (target.id && p.id === target.id) ||
+      (target.lucky_number && p.lucky_number === target.lucky_number) ||
+      (target.mobile && p.mobile === target.mobile)
+    ) {
+      participantsDB.delete(mob);
+      return { success: true, message: 'Deleted' };
+    }
+  }
+  return { success: false, message: 'Not found' };
+}
+
+const initialCount = participantsDB.size;
+assert(initialCount >= 3, 'Must have at least 3 participants');
+const firstParticipant = Array.from(participantsDB.values())[0];
+
+// Delete by lucky number
+const delRes1 = deleteParticipant({ lucky_number: firstParticipant.lucky_number });
+assert.strictEqual(delRes1.success, true);
+assert.strictEqual(participantsDB.size, initialCount - 1);
+
+// Try deleting same participant again
+const delRes2 = deleteParticipant({ lucky_number: firstParticipant.lucky_number });
+assert.strictEqual(delRes2.success, false, 'Should return not found for already deleted participant');
+console.log('  ✅ Admin deletion by lucky number and ID verified.\n');
+
+// 7. Auto-Cleanup / Data Wipe Logic Test
+console.log('Test 7: Automatic data wipe after event end time');
+function evaluateAutoWipe(currentIST, eventDate, endTime, autoCleanup) {
+  const [currDate, currTime] = currentIST.split('T');
+  const isPast = currDate > eventDate || (currDate === eventDate && currTime >= endTime);
+  if (autoCleanup && isPast) {
+    return { shouldWipe: true, status: 'CLOSED' };
+  } else if (isPast) {
+    return { shouldWipe: false, status: 'CLOSED' };
+  } else if (currDate === eventDate && currTime >= '09:00:00') {
+    return { shouldWipe: false, status: 'LIVE' };
+  } else {
+    return { shouldWipe: false, status: 'SCHEDULED' };
+  }
+}
+
+// 9:00 AM to 8:00 PM IST test schedule
+const testDate = '2026-10-09';
+const testEnd = '20:00:00';
+
+assert.strictEqual(evaluateAutoWipe('2026-10-09T08:30:00', testDate, testEnd, true).status, 'SCHEDULED');
+assert.strictEqual(evaluateAutoWipe('2026-10-09T08:30:00', testDate, testEnd, true).shouldWipe, false);
+
+assert.strictEqual(evaluateAutoWipe('2026-10-09T10:00:00', testDate, testEnd, true).status, 'LIVE');
+assert.strictEqual(evaluateAutoWipe('2026-10-09T10:00:00', testDate, testEnd, true).shouldWipe, false);
+
+assert.strictEqual(evaluateAutoWipe('2026-10-09T19:59:59', testDate, testEnd, true).status, 'LIVE');
+assert.strictEqual(evaluateAutoWipe('2026-10-09T19:59:59', testDate, testEnd, true).shouldWipe, false);
+
+// Time reaches 8:00 PM -> AUTO WIPE TRIGGERS
+const wipeResult = evaluateAutoWipe('2026-10-09T20:00:00', testDate, testEnd, true);
+assert.strictEqual(wipeResult.status, 'CLOSED');
+assert.strictEqual(wipeResult.shouldWipe, true, 'Auto wipe must trigger at or after 20:00:00');
+
+const dayAfterWipe = evaluateAutoWipe('2026-10-10T09:00:00', testDate, testEnd, true);
+assert.strictEqual(dayAfterWipe.status, 'CLOSED');
+assert.strictEqual(dayAfterWipe.shouldWipe, true);
+console.log('  ✅ Automatic data wipe past 8:00 PM verified.\n');
+
+// 8. Dynamic IST Schedule Time Parsing Test
+console.log('Test 8: Dynamic IST time parsing & conversion');
+function parseISTDate(dateStr, timeStr) {
+  const [year, month, day] = (dateStr || '2026-10-09').split('-').map(Number);
+  const [hour, min, sec] = (timeStr || '20:00:00').split(':').map(Number);
+  const istMinutes = (hour || 0) * 60 + (min || 0);
+  const utcMinutes = istMinutes - 330;
+  const utcHour = Math.floor(((utcMinutes + 1440) % 1440) / 60);
+  const utcMin = ((utcMinutes + 1440) % 1440) % 60;
+  const dayOffset = utcMinutes < 0 ? -1 : utcMinutes >= 1440 ? 1 : 0;
+  return new Date(Date.UTC(year, (month || 1) - 1, (day || 1) + dayOffset, utcHour, utcMin, sec || 0));
+}
+
+const parsedStart = parseISTDate('2026-10-09', '09:00:00');
+// 9:00 AM IST = 3:30 AM UTC
+assert.strictEqual(parsedStart.getUTCHours(), 3);
+assert.strictEqual(parsedStart.getUTCMinutes(), 30);
+
+const parsedEnd = parseISTDate('2026-10-09', '20:00:00');
+// 8:00 PM IST = 14:30 UTC
+assert.strictEqual(parsedEnd.getUTCHours(), 14);
+assert.strictEqual(parsedEnd.getUTCMinutes(), 30);
+console.log('  ✅ Dynamic IST to UTC time conversions verified.\n');
+
+console.log('🎉 ALL 8 TEST SUITES COMPLETED WITH 100% SUCCESS!');

@@ -60,8 +60,8 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
     if (!isLive) {
       setErrorMsg(
         isBefore
-          ? 'Lucky draw has not started yet (Starts at 8:00 PM IST).'
-          : 'Lucky draw is closed.'
+          ? 'The lucky draw participation is not open yet. It will open automatically when the countdown completes.'
+          : 'The lucky draw is currently closed.'
       );
       soundFx.playError();
       return;

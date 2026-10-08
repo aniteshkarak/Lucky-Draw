@@ -43,6 +43,10 @@ interface MockStorage {
   } | null;
   statusOverride: DrawState | 'AUTO';
   emergencyClosed: boolean;
+  eventDate?: string;
+  startTime?: string;
+  endTime?: string;
+  autoCleanupAfterEnd?: boolean;
 }
 
 const STORAGE_KEY = 'dada_lucky_draw_db_v1';
@@ -57,7 +61,7 @@ function getMockDB(): MockStorage {
     // Ignore parse error
   }
 
-  // Seed sample initial participants for realistic live demonstration if empty
+  // Default test schedule: 9:00 AM (09:00) to 8:00 PM (20:00) IST
   const initial: MockStorage = {
     participants: [
       { id: '1', name: 'Aarav Sharma', mobile: '9876543210', lucky_number: 38472, played_at: new Date(Date.now() - 3600000).toISOString(), created_at: new Date(Date.now() - 3600000).toISOString() },
@@ -67,8 +71,12 @@ function getMockDB(): MockStorage {
       { id: '5', name: 'Debabrata Das', mobile: '9876543214', lucky_number: 94017, played_at: new Date(Date.now() - 500000).toISOString(), created_at: new Date(Date.now() - 500000).toISOString() },
     ],
     winners: null,
-    statusOverride: 'LIVE_DRAW', // Default to LIVE_DRAW for rich immediate interaction in dev
+    statusOverride: 'LIVE_DRAW',
     emergencyClosed: false,
+    eventDate: '2026-10-09',
+    startTime: '09:00:00',
+    endTime: '20:00:00',
+    autoCleanupAfterEnd: true,
   };
   saveMockDB(initial);
   return initial;
@@ -110,15 +118,16 @@ export const apiService = {
         const { data, error } = await supabase.rpc('get_draw_status');
         if (!error && data) {
           return {
-            event_date: data.event_date || '2026-10-25',
-            start_time: data.start_time || '20:00:00',
-            end_time: data.end_time || '21:00:00',
+            event_date: data.event_date || '2026-10-09',
+            start_time: data.start_time || '09:00:00',
+            end_time: data.end_time || '20:00:00',
             timezone: data.timezone || 'Asia/Kolkata',
             status: data.status as DrawState,
             server_time_ist: data.server_time_ist || new Date().toISOString(),
             total_participants: data.total_participants || 0,
             winners_selected: Boolean(data.winners_selected),
             emergency_closed: Boolean(data.emergency_closed),
+            auto_cleanup_after_end: data.auto_cleanup_after_end ?? true,
             manual_override: data.manual_override,
           };
         }
@@ -129,6 +138,28 @@ export const apiService = {
 
     // Mock fallback
     const db = getMockDB();
+    const eventDate = db.eventDate || '2026-10-09';
+    const startTime = db.startTime || '09:00:00';
+    const endTime = db.endTime || '20:00:00';
+    const autoCleanup = db.autoCleanupAfterEnd ?? true;
+
+    // Check automatic data cleanup past end time
+    const [year, month, day] = eventDate.split('-').map(Number);
+    const [hour, min, sec] = endTime.split(':').map(Number);
+    const endIstMinutes = (hour || 0) * 60 + (min || 0);
+    const endUtcMinutes = endIstMinutes - 330;
+    const utcHour = Math.floor(((endUtcMinutes + 1440) % 1440) / 60);
+    const utcMin = ((endUtcMinutes + 1440) % 1440) % 60;
+    const dayOffset = endUtcMinutes < 0 ? -1 : endUtcMinutes >= 1440 ? 1 : 0;
+    const endUtcTime = new Date(Date.UTC(year, (month || 1) - 1, (day || 1) + dayOffset, utcHour, utcMin, sec || 0)).getTime();
+
+    if (autoCleanup && Date.now() >= endUtcTime && (db.participants.length > 0 || db.winners)) {
+      db.participants = [];
+      db.winners = null;
+      db.statusOverride = 'DRAW_CLOSED';
+      saveMockDB(db);
+    }
+
     const effectiveStatus: DrawState = db.winners
       ? 'WINNERS_PUBLISHED'
       : db.emergencyClosed
@@ -138,15 +169,16 @@ export const apiService = {
       : db.statusOverride;
 
     return {
-      event_date: '2026-10-25',
-      start_time: '20:00:00',
-      end_time: '21:00:00',
+      event_date: eventDate,
+      start_time: startTime,
+      end_time: endTime,
       timezone: 'Asia/Kolkata',
       status: effectiveStatus,
       server_time_ist: new Date().toISOString(),
       total_participants: db.participants.length,
       winners_selected: db.winners !== null,
       emergency_closed: db.emergencyClosed,
+      auto_cleanup_after_end: autoCleanup,
       manual_override: db.statusOverride,
     };
   },
@@ -298,6 +330,7 @@ export const apiService = {
           return {
             total_count: data.total_count || 0,
             participants: (data.participants || []).map((p: Participant, idx: number) => ({
+              id: p.id,
               serial_no: p.serial_no || offset + idx + 1,
               name: p.name,
               lucky_number: p.lucky_number,
@@ -490,11 +523,59 @@ export const apiService = {
   },
 
   /**
-   * Delete a single participant by ID (Admin only)
+   * Configure Event Schedule (Date, Start Time, End Time, Auto-Cleanup on Draw End)
+   */
+  async adminConfigureSchedule(
+    adminPin: string,
+    eventDate: string,
+    startTime: string,
+    endTime: string,
+    autoCleanup: boolean = true
+  ): Promise<{ success: boolean; message: string }> {
+    const validPin = import.meta.env.VITE_ADMIN_PIN || 'dada2026';
+    if (adminPin !== validPin) {
+      return { success: false, message: 'Invalid Admin Security PIN.' };
+    }
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.rpc('admin_configure_schedule', {
+          p_admin_pin: adminPin,
+          p_event_date: eventDate,
+          p_start_time: startTime,
+          p_end_time: endTime,
+          p_auto_cleanup: autoCleanup,
+        });
+        if (!error && data) {
+          notifySubscribers();
+          return data;
+        } else if (error) {
+          console.warn('Supabase admin_configure_schedule error:', error);
+        }
+      } catch (err) {
+        console.warn('Supabase admin_configure_schedule error:', err);
+      }
+    }
+
+    // Mock fallback update
+    const db = getMockDB();
+    db.eventDate = eventDate;
+    db.startTime = startTime;
+    db.endTime = endTime;
+    db.autoCleanupAfterEnd = autoCleanup;
+    saveMockDB(db);
+    notifySubscribers();
+
+    return { success: true, message: 'Schedule and auto-delete settings updated successfully!' };
+  },
+
+  /**
+   * Delete a single participant by ID, Lucky Number, or Mobile (Admin only)
    */
   async adminDeleteParticipant(
     adminPin: string,
     participantId?: string,
+    luckyNumber?: number,
     mobile?: string
   ): Promise<{ success: boolean; message: string }> {
     const validPin = import.meta.env.VITE_ADMIN_PIN || 'dada2026';
@@ -507,10 +588,16 @@ export const apiService = {
         const { data, error } = await supabase.rpc('admin_delete_participant', {
           p_admin_pin: adminPin,
           p_participant_id: participantId || null,
+          p_lucky_number: luckyNumber || null,
           p_mobile: mobile || null,
         });
         if (!error && data) {
+          if (data.success) {
+            notifySubscribers();
+          }
           return data;
+        } else if (error) {
+          console.warn('Supabase admin_delete_participant error:', error);
         }
       } catch (err) {
         console.warn('Supabase admin_delete_participant error:', err);
@@ -522,9 +609,14 @@ export const apiService = {
     const initialLen = db.participants.length;
     if (participantId) {
       db.participants = db.participants.filter((p) => p.id !== participantId);
-    } else if (mobile) {
+    }
+    if (luckyNumber) {
+      db.participants = db.participants.filter((p) => p.lucky_number !== luckyNumber);
+    }
+    if (mobile) {
       db.participants = db.participants.filter((p) => p.mobile !== mobile);
     }
+
     if (db.participants.length < initialLen) {
       saveMockDB(db);
       notifySubscribers();

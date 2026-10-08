@@ -1,13 +1,16 @@
 import React from 'react';
 import { Calendar, Clock, Ticket, Trophy, ArrowDown, Heart, Sparkles } from 'lucide-react';
 import { DrawState } from '../types';
-import { TimeRemaining } from '../utils/time';
+import { TimeRemaining, formatDisplayDate, formatTimeRange, formatDisplayTime } from '../utils/time';
 import { soundFx } from '../utils/audio';
 
 interface HeroSectionProps {
   status: DrawState;
   timeRemaining: TimeRemaining;
   totalParticipants: number;
+  eventDate?: string;
+  startTime?: string;
+  endTime?: string;
   onCtaClick: () => void;
 }
 
@@ -15,6 +18,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   status,
   timeRemaining,
   totalParticipants,
+  eventDate,
+  startTime,
+  endTime,
   onCtaClick,
 }) => {
   const isBefore = status === 'BEFORE_DRAW' || status === 'SCHEDULED';
@@ -22,7 +28,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const isWinners = status === 'WINNERS_PUBLISHED';
 
   const getCtaLabel = () => {
-    if (isBefore) return 'Starts at 8:00 PM IST';
+    if (isBefore) return `Starts at ${formatDisplayTime(startTime || '09:00:00')} IST`;
     if (isLive) return 'Get Your Lucky Number';
     if (isWinners) return 'View Winners';
     return 'Draw Closed';
@@ -74,11 +80,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-xs font-medium text-gold-200">
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#161424] border border-gold-500/20">
           <Calendar className="w-3.5 h-3.5 text-gold-400" />
-          <span>25 October 2026</span>
+          <span>{formatDisplayDate(eventDate)}</span>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#161424] border border-gold-500/20">
           <Clock className="w-3.5 h-3.5 text-gold-400" />
-          <span>8:00 PM – 9:00 PM IST</span>
+          <span>{formatTimeRange(startTime, endTime)}</span>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#161424] border border-gold-500/20">
           <Ticket className="w-3.5 h-3.5 text-gold-400" />

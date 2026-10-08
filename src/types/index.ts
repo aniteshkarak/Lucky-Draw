@@ -26,6 +26,7 @@ export interface DrawSettings {
   total_participants: number;
   winners_selected: boolean;
   emergency_closed: boolean;
+  auto_cleanup_after_end?: boolean;
   manual_override?: string;
 }
 
