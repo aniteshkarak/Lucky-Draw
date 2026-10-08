@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Clock, Ticket, Trophy, ArrowDown } from 'lucide-react';
+import { Calendar, Clock, Ticket, Trophy, ArrowDown, Heart, Sparkles } from 'lucide-react';
 import { DrawState } from '../types';
 import { TimeRemaining } from '../utils/time';
 import { soundFx } from '../utils/audio';
@@ -31,19 +31,42 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const isCtaDisabled = isBefore || (!isLive && !isWinners);
 
   return (
-    <section className="pt-8 pb-10 px-4 text-center max-w-3xl mx-auto space-y-6">
-      {/* Event Badge */}
-      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gold-500/10 border border-gold-500/30 text-gold-300 text-xs font-semibold tracking-wider uppercase">
-        <span>🎂 Birthday Celebration Special</span>
+    <section className="pt-6 pb-10 px-4 text-center max-w-4xl mx-auto space-y-6">
+      {/* Wedding Badge */}
+      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-rose-500/20 via-gold-500/20 to-rose-500/20 border border-rose-400/40 text-rose-200 text-xs font-semibold tracking-wider uppercase shadow-md">
+        <Sparkles className="w-3.5 h-3.5 text-gold-300" />
+        <span>Wedding Celebration Special</span>
+        <Heart className="w-3.5 h-3.5 text-rose-400 fill-rose-400" />
       </div>
 
-      {/* Main Title */}
-      <div className="space-y-2">
-        <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white">
-          DADA'S BIRTHDAY <span className="text-gold-400">LUCKY DRAW</span>
+      {/* Couple Portrait Card Showcase */}
+      <div className="relative max-w-xs sm:max-w-sm mx-auto my-2">
+        <div className="absolute -inset-1.5 bg-gradient-to-r from-rose-500 via-gold-400 to-amber-500 rounded-3xl blur-md opacity-40 animate-pulse" />
+        <div className="relative rounded-2xl overflow-hidden border-2 border-gold-400/50 shadow-2xl bg-[#161326]">
+          <img
+            src="/assets/couple.jpg"
+            alt="Reon Merchant & Priyanka Wedding Celebration"
+            className="w-full h-auto object-cover max-h-[380px] sm:max-h-[440px] hover:scale-105 transition-transform duration-700"
+            loading="eager"
+          />
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 text-center">
+            <h3 className="font-serif-luxury text-xl sm:text-2xl font-bold text-white tracking-wide">
+              Reon <span className="text-rose-300 font-serif italic">&</span> Priyanka
+            </h3>
+            <p className="text-[11px] text-gold-300 tracking-widest uppercase font-medium">
+              Forever Together • Wedding Celebration
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Title & Subtitle */}
+      <div className="space-y-2 pt-2">
+        <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white font-serif-luxury">
+          WEDDING <span className="gold-text-gradient">LUCKY DRAW</span>
         </h2>
         <p className="text-sm sm:text-base text-gray-300 max-w-lg mx-auto">
-          "Your Lucky Number Could Be Your Winning Number!"
+          "Your Lucky Number Could Be Your Winning Gift!"
         </p>
       </div>
 

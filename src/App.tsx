@@ -5,7 +5,7 @@ import { HeroSection } from './components/HeroSection';
 import { ParticipationForm } from './components/ParticipationForm';
 import { WinnerRevealSection } from './components/WinnerRevealSection';
 import { PublicParticipantList } from './components/PublicParticipantList';
-import { BirthdayWishesSection } from './components/BirthdayWishesSection';
+import { WeddingWishesSection } from './components/WeddingWishesSection';
 import { LuckyTicketModal } from './components/LuckyTicketModal';
 import { AdminModal } from './components/AdminModal';
 import { Footer } from './components/Footer';
@@ -227,8 +227,8 @@ export const App: React.FC = () => {
           onRefresh={fetchData}
         />
 
-        {/* 6. Birthday Tribute to Dada */}
-        <BirthdayWishesSection />
+        {/* 6. Wedding Wishes & Blessings */}
+        <WeddingWishesSection />
       </main>
 
       {/* Footer */}

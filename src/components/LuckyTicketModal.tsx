@@ -89,9 +89,9 @@ export const LuckyTicketModal: React.FC<LuckyTicketModalProps> = ({
 
             {/* Header */}
             <h3 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-white tracking-wide">
-              Dada's Birthday Lucky Draw
+              Reon & Priyanka Wedding Lucky Draw
             </h3>
-            <p className="text-xs text-gold-300/80 mt-0.5">25 October • 8:00 PM – 9:00 PM IST</p>
+            <p className="text-xs text-gold-300/80 mt-0.5">25 October 2026 • 8:00 PM – 9:00 PM IST</p>
 
             {/* Dashed Separator */}
             <div className="my-5 border-t border-dashed border-gold-500/40 relative">

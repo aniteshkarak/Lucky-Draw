@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, VolumeX, Shield, Clock } from 'lucide-react';
+import { Volume2, VolumeX, Shield, Clock, Heart } from 'lucide-react';
 import { soundFx } from '../utils/audio';
 import { formatISTTime } from '../utils/time';
 
@@ -28,19 +28,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAdmin, statusText }) => {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-[#090810]/80 border-b border-gold-500/20 px-4 sm:px-8 py-3 transition-all">
+    <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-[#090810]/85 border-b border-gold-500/20 px-4 sm:px-8 py-3 transition-all">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold-400 via-gold-500 to-gold-700 flex items-center justify-center text-black font-black text-xl shadow-gold-glow animate-pulse-slow">
-            🎁
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-400 via-rose-500 to-amber-500 flex items-center justify-center text-white text-lg shadow-md">
+            💍
           </div>
           <div>
-            <span className="block text-xs font-semibold tracking-widest text-gold-400 uppercase">
-              25 October • Live Event
+            <span className="block text-[10px] font-semibold tracking-widest text-rose-300 uppercase flex items-center gap-1">
+              <span>Wedding Celebration</span>
+              <Heart className="w-2.5 h-2.5 fill-rose-400 text-rose-400" />
             </span>
-            <h1 className="text-sm sm:text-base font-bold text-white tracking-wide flex items-center gap-2">
-              Dada's Birthday <span className="text-gold-400 font-extrabold">Lucky Draw</span>
+            <h1 className="text-xs sm:text-base font-bold text-white tracking-wide">
+              Reon <span className="text-rose-300 font-serif italic font-normal">&</span> Priyanka <span className="text-gold-400">Lucky Draw</span>
             </h1>
           </div>
         </div>
@@ -54,7 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAdmin, statusText }) => {
           </div>
 
           {/* Status Badge */}
-          <div className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-festive-card border border-gold-500/30 text-gold-300">
+          <div className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#161424] border border-gold-500/30 text-gold-300">
             <span className="w-2 h-2 rounded-full bg-gold-400 mr-2 animate-ping" />
             {statusText}
           </div>
@@ -73,7 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAdmin, statusText }) => {
               </>
             ) : (
               <>
-                <Volume2 className="w-4 h-4 text-gold-400 animate-pulse" />
+                <Volume2 className="w-4 h-4 text-gold-400" />
                 <span className="hidden sm:inline text-gold-300">Sound On</span>
               </>
             )}
