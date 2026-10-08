@@ -1,4 +1,11 @@
-export type DrawState = 'BEFORE_DRAW' | 'LIVE_DRAW' | 'DRAW_CLOSED' | 'WINNERS_PUBLISHED';
+export type DrawState =
+  | 'SCHEDULED'
+  | 'LIVE'
+  | 'CLOSED'
+  | 'WINNERS_PUBLISHED'
+  | 'BEFORE_DRAW'
+  | 'LIVE_DRAW'
+  | 'DRAW_CLOSED';
 
 export interface Participant {
   serial_no: number;

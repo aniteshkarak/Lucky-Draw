@@ -1,11 +1,11 @@
 -- ==============================================================================
 -- DADA'S BIRTHDAY — LIVE LUCKY DRAW WEB APPLICATION
--- Production Database Schema, Migrations, Functions & Row Level Security (RLS)
--- Official Event Timezone: Asia/Kolkata
--- Event Window: 25 October, 8:00 PM IST (20:00:00) to 9:00 PM IST (21:00:00)
+-- Supabase PostgreSQL Database Schema, Migrations, RPC Functions & RLS
+-- Official Event: 25 October 2026
+-- Timezone: Asia/Kolkata (IST: UTC+5:30)
+-- Active Window: 8:00 PM IST (20:00:00) to 9:00 PM IST (21:00:00)
 -- ==============================================================================
 
--- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -23,7 +23,7 @@ CREATE TABLE draw_settings (
     start_time TIME NOT NULL DEFAULT '20:00:00',
     end_time TIME NOT NULL DEFAULT '21:00:00',
     timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
-    status TEXT NOT NULL DEFAULT 'AUTO' CHECK (status IN ('AUTO', 'FORCE_BEFORE', 'FORCE_LIVE', 'FORCE_CLOSED', 'WINNERS_PUBLISHED')),
+    status TEXT NOT NULL DEFAULT 'SCHEDULED' CHECK (status IN ('SCHEDULED', 'LIVE', 'CLOSED', 'WINNERS_PUBLISHED', 'BEFORE_DRAW', 'LIVE_DRAW', 'DRAW_CLOSED')),
     allow_manual_override BOOLEAN NOT NULL DEFAULT false,
     emergency_closed BOOLEAN NOT NULL DEFAULT false,
     admin_pin_hash TEXT NOT NULL DEFAULT crypt('dada2026', gen_salt('bf')),
@@ -31,9 +31,9 @@ CREATE TABLE draw_settings (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Seed initial draw settings
+-- Seed initial production draw settings
 INSERT INTO draw_settings (event_date, start_time, end_time, timezone, status)
-VALUES ('2026-10-25', '20:00:00', '21:00:00', 'Asia/Kolkata', 'AUTO');
+VALUES ('2026-10-25', '20:00:00', '21:00:00', 'Asia/Kolkata', 'SCHEDULED');
 
 -- 3. CREATE PARTICIPANTS TABLE
 CREATE TABLE participants (
@@ -47,7 +47,7 @@ CREATE TABLE participants (
     CONSTRAINT uq_participants_lucky_number UNIQUE (lucky_number)
 );
 
--- Indexes for maximum query performance
+-- Recommended Indexes
 CREATE INDEX idx_participants_mobile ON participants(mobile);
 CREATE INDEX idx_participants_lucky_number ON participants(lucky_number);
 CREATE INDEX idx_participants_played_at ON participants(played_at DESC);
@@ -64,14 +64,13 @@ CREATE TABLE winners (
     third_prize_number INTEGER,
     is_published BOOLEAN NOT NULL DEFAULT true,
     selected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT single_winner_row CHECK (id IS NOT NULL)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Ensure only one winner draw record can ever exist
-CREATE UNIQUE INDEX idx_single_winner_draw ON winners ((true));
+-- Ensure only one winner draw record can exist
+CREATE UNIQUE INDEX idx_single_winner_record ON winners ((true));
 
--- 5. CREATE SAFE PUBLIC VIEWS (Never exposes mobile numbers)
+-- 5. SAFE PUBLIC VIEWS (Never exposes mobile numbers)
 CREATE OR REPLACE VIEW public_participants AS
 SELECT 
     ROW_NUMBER() OVER (ORDER BY p.played_at ASC) AS serial_no,
@@ -99,10 +98,10 @@ LEFT JOIN participants p2 ON w.second_prize_participant_id = p2.id
 LEFT JOIN participants p3 ON w.third_prize_participant_id = p3.id;
 
 -- ==============================================================================
--- 6. STORED PROCEDURES & RPC FUNCTIONS (ATOMIC & SECURITY DEFINER)
+-- 6. STORED PROCEDURES & RPC FUNCTIONS (SECURITY DEFINER)
 -- ==============================================================================
 
--- A. Helper function: Get Current Draw Status & Time (Asia/Kolkata)
+-- A. Authoritative Draw Status & Time (Asia/Kolkata)
 CREATE OR REPLACE FUNCTION get_draw_status()
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -117,11 +116,10 @@ DECLARE
     v_status TEXT;
     v_total_participants INTEGER;
     v_winners_exist BOOLEAN;
-    v_response JSONB;
 BEGIN
     SELECT * INTO v_settings FROM draw_settings LIMIT 1;
     
-    -- Convert current server UTC time to Asia/Kolkata timezone
+    -- Convert server time to Asia/Kolkata
     v_now_ist := (now() AT TIME ZONE 'Asia/Kolkata');
     v_current_time := v_now_ist::TIME;
     v_current_date := v_now_ist::DATE;
@@ -129,35 +127,34 @@ BEGIN
     SELECT COUNT(*) INTO v_total_participants FROM participants;
     SELECT EXISTS(SELECT 1 FROM winners) INTO v_winners_exist;
 
-    -- Evaluate effective status
     IF v_settings.emergency_closed THEN
-        v_status := 'DRAW_CLOSED';
+        v_status := 'CLOSED';
     ELSIF v_winners_exist THEN
         v_status := 'WINNERS_PUBLISHED';
-    ELSIF v_settings.status = 'FORCE_BEFORE' THEN
-        v_status := 'BEFORE_DRAW';
-    ELSIF v_settings.status = 'FORCE_LIVE' THEN
-        v_status := 'LIVE_DRAW';
-    ELSIF v_settings.status = 'FORCE_CLOSED' THEN
-        v_status := 'DRAW_CLOSED';
+    ELSIF v_settings.status IN ('SCHEDULED', 'BEFORE_DRAW') AND v_settings.allow_manual_override THEN
+        v_status := 'SCHEDULED';
+    ELSIF v_settings.status IN ('LIVE', 'LIVE_DRAW') AND v_settings.allow_manual_override THEN
+        v_status := 'LIVE';
+    ELSIF v_settings.status IN ('CLOSED', 'DRAW_CLOSED') AND v_settings.allow_manual_override THEN
+        v_status := 'CLOSED';
     ELSE
-        -- Automated time-based evaluation
+        -- Time-based automated check
         IF v_current_date < v_settings.event_date THEN
-            v_status := 'BEFORE_DRAW';
+            v_status := 'SCHEDULED';
         ELSIF v_current_date > v_settings.event_date THEN
-            v_status := 'DRAW_CLOSED';
+            v_status := 'CLOSED';
         ELSE
             IF v_current_time < v_settings.start_time THEN
-                v_status := 'BEFORE_DRAW';
+                v_status := 'SCHEDULED';
             ELSIF v_current_time >= v_settings.start_time AND v_current_time < v_settings.end_time THEN
-                v_status := 'LIVE_DRAW';
+                v_status := 'LIVE';
             ELSE
-                v_status := 'DRAW_CLOSED';
+                v_status := 'CLOSED';
             END IF;
         END IF;
     END IF;
 
-    v_response := jsonb_build_object(
+    RETURN jsonb_build_object(
         'status', v_status,
         'server_time_ist', v_now_ist,
         'event_date', v_settings.event_date,
@@ -169,12 +166,10 @@ BEGIN
         'emergency_closed', v_settings.emergency_closed,
         'manual_override', v_settings.status
     );
-
-    RETURN v_response;
 END;
 $$;
 
--- B. Atomic Participant Registration Function (One mobile = One entry, Server generated 5-digit number)
+-- B. Atomic Participant Registration (One mobile = One entry, Server generated 5-digit number)
 CREATE OR REPLACE FUNCTION participate(p_name TEXT, p_mobile TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -200,12 +195,11 @@ BEGIN
         RETURN jsonb_build_object(
             'success', false,
             'code', 'INVALID_NAME',
-            'message', 'Please enter a valid full name between 2 and 80 characters.'
+            'message', 'Please enter a valid full name (between 2 and 80 characters).'
         );
     END IF;
 
-    -- 2. Normalize & validate Indian Mobile Number (10 digits starting with 6-9)
-    -- Remove any spaces, dashes, +91 or leading 0
+    -- 2. Normalize & validate Indian 10-digit Mobile Number
     v_clean_mobile := regexp_replace(COALESCE(p_mobile, ''), '[^0-9]', '', 'g');
     IF v_clean_mobile ~ '^91[6-9][0-9]{9}$' THEN
         v_clean_mobile := substr(v_clean_mobile, 3);
@@ -225,21 +219,21 @@ BEGIN
     v_draw_status := get_draw_status();
     v_current_state := v_draw_status->>'status';
 
-    IF v_current_state = 'BEFORE_DRAW' THEN
+    IF v_current_state = 'SCHEDULED' OR v_current_state = 'BEFORE_DRAW' THEN
         RETURN jsonb_build_object(
             'success', false,
             'code', 'NOT_STARTED',
-            'message', 'Lucky draw has not started yet. Participation opens at 8:00 PM IST.'
+            'message', 'The lucky draw has not started yet. Participation opens at 8:00 PM IST.'
         );
-    ELSIF v_current_state = 'DRAW_CLOSED' OR v_current_state = 'WINNERS_PUBLISHED' THEN
+    ELSIF v_current_state = 'CLOSED' OR v_current_state = 'DRAW_CLOSED' OR v_current_state = 'WINNERS_PUBLISHED' THEN
         RETURN jsonb_build_object(
             'success', false,
             'code', 'DRAW_CLOSED',
-            'message', 'Lucky draw is closed. Entries closed at 9:00 PM IST.'
+            'message', 'The lucky draw is now closed.'
         );
     END IF;
 
-    -- 4. Check If Mobile Already Participated (Idempotency check)
+    -- 4. Check If Mobile Already Participated (Idempotency)
     SELECT * INTO v_existing_participant FROM participants WHERE mobile = v_clean_mobile;
     IF FOUND THEN
         RETURN jsonb_build_object(
@@ -251,14 +245,13 @@ BEGIN
                 'lucky_number', v_existing_participant.lucky_number,
                 'played_at', v_existing_participant.played_at
             ),
-            'message', 'You have already participated! Here is your official lucky number.'
+            'message', 'This mobile number has already participated. Here is your official lucky number.'
         );
     END IF;
 
-    -- 5. Generate Unique 5-digit Lucky Number (10000 - 99999) with collision retry
+    -- 5. Generate Unique 5-Digit Number (10000 - 99999) with collision retry
     LOOP
         v_attempts := v_attempts + 1;
-        -- Generate random number between 10000 and 99999 inclusive
         v_lucky_number := floor(10000 + random() * 90000)::INTEGER;
 
         BEGIN
@@ -267,10 +260,9 @@ BEGIN
             RETURNING id, played_at INTO v_inserted_id, v_inserted_played_at;
 
             v_success := true;
-            EXIT; -- Successfully inserted
+            EXIT;
         EXCEPTION
             WHEN unique_violation THEN
-                -- If mobile was inserted concurrently by another request
                 SELECT * INTO v_existing_participant FROM participants WHERE mobile = v_clean_mobile;
                 IF FOUND THEN
                     RETURN jsonb_build_object(
@@ -282,12 +274,11 @@ BEGIN
                             'lucky_number', v_existing_participant.lucky_number,
                             'played_at', v_existing_participant.played_at
                         ),
-                        'message', 'You have already participated! Here is your official lucky number.'
+                        'message', 'This mobile number has already participated. Here is your official lucky number.'
                     );
                 END IF;
-                -- If it was a lucky_number collision, loop and retry
                 IF v_attempts >= v_max_attempts THEN
-                    RAISE EXCEPTION 'Could not allocate unique lucky number after % attempts', v_max_attempts;
+                    RAISE EXCEPTION 'Unable to allocate unique lucky number after % attempts', v_max_attempts;
                 END IF;
         END;
     END LOOP;
@@ -302,13 +293,13 @@ BEGIN
                 'lucky_number', v_lucky_number,
                 'played_at', v_inserted_played_at
             ),
-            'message', 'Congratulations! Your lucky number has been generated.'
+            'message', 'Your lucky number has been generated!'
         );
     ELSE
         RETURN jsonb_build_object(
             'success', false,
             'code', 'SERVER_ERROR',
-            'message', 'An unexpected error occurred. Please try again.'
+            'message', 'Unable to complete your entry right now. Please try again.'
         );
     END IF;
 END;
@@ -331,12 +322,10 @@ DECLARE
     v_p1 RECORD;
     v_p2 RECORD;
     v_p3 RECORD;
-    v_winner_id UUID;
 BEGIN
-    -- 1. Check If Winners Already Exist (IMMUTABILITY RULE)
+    -- 1. Check If Winners Already Exist (IMMUTABILITY)
     SELECT * INTO v_existing_winners FROM winners LIMIT 1;
     IF FOUND THEN
-        -- Fetch names of existing winners
         SELECT 
             w.id,
             w.selected_at,
@@ -357,7 +346,7 @@ BEGIN
         RETURN jsonb_build_object(
             'success', true,
             'already_selected', true,
-            'message', 'Winners have already been drawn and are permanently locked.',
+            'message', 'Winners have already been selected and are permanently locked.',
             'winners', jsonb_build_object(
                 'first_prize', jsonb_build_object('name', v_winners_records.first_prize_name, 'lucky_number', v_winners_records.first_prize_number),
                 'second_prize', jsonb_build_object('name', v_winners_records.second_prize_name, 'lucky_number', v_winners_records.second_prize_number),
@@ -367,12 +356,11 @@ BEGIN
         );
     END IF;
 
-    -- 2. Verify Draw Closure / Authority
+    -- 2. Verify Draw Closure Authority
     SELECT * INTO v_settings FROM draw_settings LIMIT 1;
     v_draw_status := get_draw_status();
     v_status := v_draw_status->>'status';
 
-    -- Admin PIN check if provided or if required
     IF p_admin_pin IS NOT NULL AND crypt(p_admin_pin, v_settings.admin_pin_hash) != v_settings.admin_pin_hash THEN
         RETURN jsonb_build_object(
             'success', false,
@@ -381,7 +369,7 @@ BEGIN
         );
     END IF;
 
-    IF v_status != 'DRAW_CLOSED' AND v_status != 'WINNERS_PUBLISHED' AND NOT p_force THEN
+    IF v_status != 'CLOSED' AND v_status != 'DRAW_CLOSED' AND v_status != 'WINNERS_PUBLISHED' AND NOT p_force THEN
         RETURN jsonb_build_object(
             'success', false,
             'code', 'DRAW_NOT_CLOSED',
@@ -395,18 +383,13 @@ BEGIN
         RETURN jsonb_build_object(
             'success', false,
             'code', 'NO_PARTICIPANTS',
-            'message', 'No participants have joined the draw yet. Cannot select winners.'
+            'message', 'No participants have joined. Cannot select winners.'
         );
     END IF;
 
     -- 4. Select Random Distinct Real Participants
-    -- 1st Prize
     SELECT * INTO v_p1 FROM participants ORDER BY random() LIMIT 1;
-    
-    -- 2nd Prize (different participant)
     SELECT * INTO v_p2 FROM participants WHERE id != v_p1.id ORDER BY random() LIMIT 1;
-
-    -- 3rd Prize (different from 1st and 2nd)
     IF v_p2.id IS NOT NULL THEN
         SELECT * INTO v_p3 FROM participants WHERE id NOT IN (v_p1.id, v_p2.id) ORDER BY random() LIMIT 1;
     END IF;
@@ -428,15 +411,14 @@ BEGIN
         v_p2.lucky_number,
         v_p3.lucky_number,
         now()
-    ) RETURNING id INTO v_winner_id;
+    );
 
-    -- Update status in draw settings
     UPDATE draw_settings SET status = 'WINNERS_PUBLISHED', updated_at = now();
 
     RETURN jsonb_build_object(
         'success', true,
         'already_selected', false,
-        'message', 'Winners have been successfully drawn and permanently recorded!',
+        'message', 'Winners drawn and permanently locked!',
         'total_participants', v_total_participants,
         'winners', jsonb_build_object(
             'first_prize', jsonb_build_object('name', v_p1.name, 'lucky_number', v_p1.lucky_number),
@@ -448,36 +430,7 @@ BEGIN
 END;
 $$;
 
--- D. Admin Update Draw Settings Function
-CREATE OR REPLACE FUNCTION admin_update_draw_settings(
-    p_admin_pin TEXT,
-    p_status TEXT DEFAULT NULL,
-    p_emergency_closed BOOLEAN DEFAULT NULL
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-    v_settings RECORD;
-BEGIN
-    SELECT * INTO v_settings FROM draw_settings LIMIT 1;
-    IF crypt(p_admin_pin, v_settings.admin_pin_hash) != v_settings.admin_pin_hash THEN
-        RETURN jsonb_build_object('success', false, 'message', 'Unauthorized. Incorrect admin PIN.');
-    END IF;
-
-    UPDATE draw_settings
-    SET 
-        status = COALESCE(p_status, status),
-        emergency_closed = COALESCE(p_emergency_closed, emergency_closed),
-        updated_at = now();
-
-    RETURN jsonb_build_object('success', true, 'message', 'Draw settings updated successfully.');
-END;
-$$;
-
--- E. Public Participant Query Function (Safe pagination and searching, NO mobile numbers)
+-- D. Public Participant Query Function (Safe pagination and searching, NO mobile numbers)
 CREATE OR REPLACE FUNCTION get_public_participants(
     p_search TEXT DEFAULT '',
     p_limit INTEGER DEFAULT 50,
@@ -551,7 +504,7 @@ BEGIN
 END;
 $$;
 
--- F. Public Winner Fetch Function
+-- E. Public Winner Fetch Function
 CREATE OR REPLACE FUNCTION get_public_winners()
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -600,17 +553,13 @@ ALTER TABLE participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE draw_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE winners ENABLE ROW LEVEL SECURITY;
 
--- Draw settings: public can read non-sensitive fields
 CREATE POLICY "Public can view draw settings" ON draw_settings
     FOR SELECT USING (true);
 
--- Winners: public can read published winners
 CREATE POLICY "Public can view winners" ON winners
     FOR SELECT USING (is_published = true);
 
--- Participants table: 
--- Public cannot perform direct INSERT, UPDATE, DELETE (must use participate() RPC)
--- Direct SELECT only allows reading safe fields via RPC or View.
+-- Participants: direct insert/update/delete blocked (must use participate() RPC)
 CREATE POLICY "No direct public insert on participants" ON participants
     FOR INSERT WITH CHECK (false);
 

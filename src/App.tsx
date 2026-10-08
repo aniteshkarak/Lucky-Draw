@@ -108,10 +108,10 @@ export const App: React.FC = () => {
     const updateCountdown = () => {
       let target: Date;
 
-      if (drawSettings.status === 'BEFORE_DRAW') {
+      if (drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED') {
         target = getEventStartTime();
       } else {
-        // LIVE_DRAW or other
+        // LIVE, LIVE_DRAW or other
         target = getEventEndTime();
       }
 
@@ -166,6 +166,10 @@ export const App: React.FC = () => {
     timeRemaining.minutes
   ).padStart(2, '0')}:${String(timeRemaining.seconds).padStart(2, '0')}`;
 
+  const isLive = drawSettings.status === 'LIVE_DRAW' || drawSettings.status === 'LIVE';
+  const isBefore = drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED';
+  const isWinners = drawSettings.status === 'WINNERS_PUBLISHED';
+
   return (
     <div className="min-h-screen bg-[#090810] text-[#FAFAF9] flex flex-col relative overflow-x-hidden selection:bg-gold-500 selection:text-black">
       {/* Background Ambient Glow */}
@@ -175,11 +179,11 @@ export const App: React.FC = () => {
       <Navbar
         onOpenAdmin={() => setIsAdminOpen(true)}
         statusText={
-          drawSettings.status === 'LIVE_DRAW'
+          isLive
             ? '🔴 LIVE DRAW'
-            : drawSettings.status === 'BEFORE_DRAW'
+            : isBefore
             ? 'Starts 8:00 PM IST'
-            : drawSettings.status === 'WINNERS_PUBLISHED'
+            : isWinners
             ? '🏆 Winners Declared'
             : 'Draw Closed'
         }
