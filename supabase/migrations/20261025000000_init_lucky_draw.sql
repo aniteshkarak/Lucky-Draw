@@ -545,6 +545,149 @@ BEGIN
 END;
 $$;
 
+-- F. Admin Update Draw Settings Function
+CREATE OR REPLACE FUNCTION admin_update_draw_settings(
+    p_admin_pin TEXT,
+    p_status TEXT DEFAULT NULL,
+    p_emergency_closed BOOLEAN DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_settings RECORD;
+BEGIN
+    SELECT * INTO v_settings FROM draw_settings LIMIT 1;
+    IF v_settings.admin_pin_hash IS NULL OR crypt(p_admin_pin, v_settings.admin_pin_hash) != v_settings.admin_pin_hash THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Unauthorized: Invalid Admin PIN');
+    END IF;
+
+    IF p_status IS NOT NULL THEN
+        UPDATE draw_settings SET status = p_status, updated_at = now();
+    END IF;
+
+    IF p_emergency_closed IS NOT NULL THEN
+        UPDATE draw_settings SET emergency_closed = p_emergency_closed, updated_at = now();
+    END IF;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Draw settings updated successfully.');
+END;
+$$;
+
+-- G. Admin Delete Single Participant Function (Admin-Only via PIN Hash Security)
+CREATE OR REPLACE FUNCTION admin_delete_participant(
+    p_admin_pin TEXT,
+    p_participant_id UUID DEFAULT NULL,
+    p_mobile TEXT DEFAULT NULL,
+    p_lucky_number INTEGER DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_settings RECORD;
+    v_deleted_count INTEGER := 0;
+    v_participant_name TEXT;
+    v_participant_number INTEGER;
+    v_target_id UUID;
+BEGIN
+    -- 1. Authenticate Admin via PIN hash
+    SELECT * INTO v_settings FROM draw_settings LIMIT 1;
+    IF v_settings.admin_pin_hash IS NULL OR crypt(p_admin_pin, v_settings.admin_pin_hash) != v_settings.admin_pin_hash THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Unauthorized: Invalid Admin PIN'
+        );
+    END IF;
+
+    -- 2. Identify target participant
+    IF p_participant_id IS NOT NULL THEN
+        v_target_id := p_participant_id;
+    ELSIF p_mobile IS NOT NULL THEN
+        SELECT id INTO v_target_id FROM participants WHERE mobile = p_mobile;
+    ELSIF p_lucky_number IS NOT NULL THEN
+        SELECT id INTO v_target_id FROM participants WHERE lucky_number = p_lucky_number;
+    ELSE
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Please specify a participant ID, mobile, or lucky number to delete.'
+        );
+    END IF;
+
+    IF v_target_id IS NULL THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Participant not found.'
+        );
+    END IF;
+
+    -- 3. Retrieve info for feedback
+    SELECT name, lucky_number INTO v_participant_name, v_participant_number FROM participants WHERE id = v_target_id;
+
+    -- 4. Clear winner references if any
+    DELETE FROM winners WHERE first_prize_participant_id = v_target_id 
+                           OR second_prize_participant_id = v_target_id 
+                           OR third_prize_participant_id = v_target_id;
+
+    -- 5. Delete participant
+    DELETE FROM participants WHERE id = v_target_id;
+    GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+
+    IF v_deleted_count > 0 THEN
+        RETURN jsonb_build_object(
+            'success', true,
+            'message', 'Participant ' || COALESCE(v_participant_name, '') || ' (#' || COALESCE(v_participant_number::text, '') || ') deleted successfully.'
+        );
+    ELSE
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Participant not found or already removed.'
+        );
+    END IF;
+END;
+$$;
+
+-- H. Admin Clear All Participants Function (Reset all test data)
+CREATE OR REPLACE FUNCTION admin_clear_all_participants(
+    p_admin_pin TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_settings RECORD;
+    v_deleted_count INTEGER := 0;
+BEGIN
+    -- 1. Authenticate Admin via PIN hash
+    SELECT * INTO v_settings FROM draw_settings LIMIT 1;
+    IF v_settings.admin_pin_hash IS NULL OR crypt(p_admin_pin, v_settings.admin_pin_hash) != v_settings.admin_pin_hash THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Unauthorized: Invalid Admin PIN'
+        );
+    END IF;
+
+    -- 2. Clear winners & participants atomically
+    DELETE FROM winners;
+    DELETE FROM participants;
+    GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+
+    -- Reset draw status to SCHEDULED
+    UPDATE draw_settings SET status = 'SCHEDULED', updated_at = now();
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'All participants and test data cleared successfully (' || v_deleted_count || ' records removed).'
+    );
+END;
+$$;
+
 -- ==============================================================================
 -- 7. ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================

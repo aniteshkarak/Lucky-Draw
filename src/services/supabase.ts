@@ -490,6 +490,82 @@ export const apiService = {
   },
 
   /**
+   * Delete a single participant by ID (Admin only)
+   */
+  async adminDeleteParticipant(
+    adminPin: string,
+    participantId?: string,
+    mobile?: string
+  ): Promise<{ success: boolean; message: string }> {
+    const validPin = import.meta.env.VITE_ADMIN_PIN || 'dada2026';
+    if (adminPin !== validPin) {
+      return { success: false, message: 'Invalid Admin Security PIN.' };
+    }
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.rpc('admin_delete_participant', {
+          p_admin_pin: adminPin,
+          p_participant_id: participantId || null,
+          p_mobile: mobile || null,
+        });
+        if (!error && data) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Supabase admin_delete_participant error:', err);
+      }
+    }
+
+    // Mock fallback
+    const db = getMockDB();
+    const initialLen = db.participants.length;
+    if (participantId) {
+      db.participants = db.participants.filter((p) => p.id !== participantId);
+    } else if (mobile) {
+      db.participants = db.participants.filter((p) => p.mobile !== mobile);
+    }
+    if (db.participants.length < initialLen) {
+      saveMockDB(db);
+      notifySubscribers();
+      return { success: true, message: 'Participant deleted successfully.' };
+    }
+    return { success: false, message: 'Participant not found.' };
+  },
+
+  /**
+   * Clear all test participants and reset draw (Admin only)
+   */
+  async adminClearAllParticipants(adminPin: string): Promise<{ success: boolean; message: string }> {
+    const validPin = import.meta.env.VITE_ADMIN_PIN || 'dada2026';
+    if (adminPin !== validPin) {
+      return { success: false, message: 'Invalid Admin Security PIN.' };
+    }
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.rpc('admin_clear_all_participants', {
+          p_admin_pin: adminPin,
+        });
+        if (!error && data) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Supabase admin_clear_all_participants error:', err);
+      }
+    }
+
+    // Mock fallback
+    const db = getMockDB();
+    db.participants = [];
+    db.winners = null;
+    db.statusOverride = 'SCHEDULED';
+    saveMockDB(db);
+    notifySubscribers();
+    return { success: true, message: 'All participants and test data cleared successfully.' };
+  },
+
+  /**
    * Subscribe to real-time events across the app
    */
   subscribeToUpdates(onUpdate: () => void): () => void {

@@ -10,11 +10,15 @@ import {
   Power,
   RotateCcw,
   CheckCircle2,
-  Settings2
+  Settings2,
+  Trash2,
+  UserX,
+  Users
 } from 'lucide-react';
 import { DrawSettings, Participant, WinnersData, DrawState } from '../types';
 import { apiService } from '../services/supabase';
 import { soundFx } from '../utils/audio';
+import { formatPlayedAt } from '../utils/time';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -134,6 +138,52 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
   };
 
+  const handleDeleteParticipant = async (participantId?: string) => {
+    if (!window.confirm('Are you sure you want to delete this participant?')) return;
+    setIsActionLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    soundFx.playClick();
+
+    try {
+      const res = await apiService.adminDeleteParticipant(pin, participantId);
+      if (res.success) {
+        setSuccessMsg(res.message);
+        onSettingsUpdated();
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to delete participant.';
+      setErrorMsg(message);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleClearAllParticipants = async () => {
+    if (!window.confirm('⚠️ Are you sure you want to delete ALL participants and reset test data?')) return;
+    setIsActionLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    soundFx.playClick();
+
+    try {
+      const res = await apiService.adminClearAllParticipants(pin);
+      if (res.success) {
+        setSuccessMsg(res.message);
+        onSettingsUpdated();
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to clear participants.';
+      setErrorMsg(message);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   const handleResetWinners = async () => {
     if (!window.confirm('⚠️ Are you sure you want to reset winners? This will unlock the draw.')) {
       return;
@@ -180,7 +230,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `dada_lucky_draw_participants_${Date.now()}.csv`);
+    link.setAttribute('download', `wedding_lucky_draw_participants_${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -193,7 +243,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
-          className="relative w-full max-w-2xl my-8 glass-panel-glow rounded-3xl p-6 sm:p-8 text-white overflow-hidden shadow-2xl"
+          className="relative w-full max-w-2xl my-8 glass-panel-glow rounded-3xl p-6 sm:p-8 text-white overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto"
         >
           {/* Close button */}
           <button
@@ -217,7 +267,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 Admin Control Center
               </h3>
               <p className="text-xs text-gold-300/80">
-                Organizer management & server-side draw controls
+                Organizer management, participant deletion & winner controls
               </p>
             </div>
           </div>
@@ -378,7 +428,59 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 )}
               </div>
 
-              {/* Action 2: Draw Status Switcher (Testing & Overrides) */}
+              {/* Action 2: Manage & Delete Participants */}
+              <div className="p-5 rounded-2xl bg-[#141224] border border-gold-500/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-gold-400" />
+                    <span className="text-sm font-bold text-white">Manage & Delete Participants</span>
+                  </div>
+                  {participants.length > 0 && (
+                    <button
+                      onClick={handleClearAllParticipants}
+                      disabled={isActionLoading}
+                      className="px-2.5 py-1 rounded-lg bg-red-950/80 hover:bg-red-900 border border-red-500/40 text-red-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                    >
+                      <UserX className="w-3.5 h-3.5" />
+                      <span>Clear All Test Data</span>
+                    </button>
+                  )}
+                </div>
+
+                {participants.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic py-2">No participants registered yet.</p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 divide-y divide-gray-800/60">
+                    {participants.map((p) => (
+                      <div
+                        key={p.id || p.lucky_number}
+                        className="flex items-center justify-between py-2 px-2 hover:bg-white/5 rounded-lg transition-colors text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-gray-400">#{p.serial_no}</span>
+                          <span className="font-semibold text-white">{p.name}</span>
+                          <span className="font-mono text-gold-300 bg-gold-500/10 px-1.5 py-0.5 rounded border border-gold-500/30">
+                            {p.lucky_number}
+                          </span>
+                          <span className="text-[10px] text-gray-400 hidden sm:inline">
+                            {formatPlayedAt(p.played_at)}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteParticipant(p.id)}
+                          disabled={isActionLoading}
+                          title="Delete this participant"
+                          className="p-1.5 rounded-md hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Action 3: Draw Status Switcher (Testing & Overrides) */}
               <div className="p-5 rounded-2xl bg-[#141224] border border-gold-500/20 space-y-3">
                 <div className="flex items-center gap-2">
                   <Settings2 className="w-5 h-5 text-gold-400" />
@@ -400,7 +502,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     onClick={() => handleChangeStatus('LIVE_DRAW')}
                     disabled={isActionLoading}
                     className={`p-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      drawSettings.status === 'LIVE_DRAW'
+                      drawSettings.status === 'LIVE_DRAW' || drawSettings.status === 'LIVE'
                         ? 'bg-gold-500/20 border-gold-400 text-gold-200'
                         : 'bg-[#18162c] border-gray-700 text-gray-300 hover:border-gold-500/40'
                     }`}
@@ -411,7 +513,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     onClick={() => handleChangeStatus('BEFORE_DRAW')}
                     disabled={isActionLoading}
                     className={`p-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      drawSettings.status === 'BEFORE_DRAW'
+                      drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED'
                         ? 'bg-blue-500/20 border-blue-400 text-blue-200'
                         : 'bg-[#18162c] border-gray-700 text-gray-300 hover:border-gold-500/40'
                     }`}
@@ -422,7 +524,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     onClick={() => handleChangeStatus('DRAW_CLOSED')}
                     disabled={isActionLoading}
                     className={`p-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      drawSettings.status === 'DRAW_CLOSED'
+                      drawSettings.status === 'DRAW_CLOSED' || drawSettings.status === 'CLOSED'
                         ? 'bg-purple-500/20 border-purple-400 text-purple-200'
                         : 'bg-[#18162c] border-gray-700 text-gray-300 hover:border-gold-500/40'
                     }`}
@@ -432,7 +534,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 </div>
               </div>
 
-              {/* Action 3: Utilities & Emergency Controls */}
+              {/* Action 4: Utilities & Emergency Controls */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gold-500/20">
                 <button
                   onClick={handleExportCSV}
