@@ -143,29 +143,42 @@ export const apiService = {
     const endTime = db.endTime || '20:00:00';
     const autoCleanup = db.autoCleanupAfterEnd ?? true;
 
-    // Check automatic data cleanup past end time
-    const [year, month, day] = eventDate.split('-').map(Number);
-    const [hour, min, sec] = endTime.split(':').map(Number);
-    const endIstMinutes = (hour || 0) * 60 + (min || 0);
-    const endUtcMinutes = endIstMinutes - 330;
-    const utcHour = Math.floor(((endUtcMinutes + 1440) % 1440) / 60);
-    const utcMin = ((endUtcMinutes + 1440) % 1440) % 60;
-    const dayOffset = endUtcMinutes < 0 ? -1 : endUtcMinutes >= 1440 ? 1 : 0;
-    const endUtcTime = new Date(Date.UTC(year, (month || 1) - 1, (day || 1) + dayOffset, utcHour, utcMin, sec || 0)).getTime();
+    // Calculate dynamic IST date & time
+    const nowIst = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const curYear = nowIst.getFullYear();
+    const curMonth = String(nowIst.getMonth() + 1).padStart(2, '0');
+    const curDay = String(nowIst.getDate()).padStart(2, '0');
+    const curDateStr = `${curYear}-${curMonth}-${curDay}`;
+    const curTimeStr = `${String(nowIst.getHours()).padStart(2, '0')}:${String(nowIst.getMinutes()).padStart(2, '0')}:${String(nowIst.getSeconds()).padStart(2, '0')}`;
 
-    if (autoCleanup && Date.now() >= endUtcTime && (db.participants.length > 0 || db.winners)) {
-      db.participants = [];
-      db.winners = null;
-      db.statusOverride = 'DRAW_CLOSED';
-      saveMockDB(db);
+    let timeBasedStatus: DrawState = 'LIVE_DRAW';
+    if (curDateStr < eventDate) {
+      timeBasedStatus = 'BEFORE_DRAW';
+    } else if (curDateStr > eventDate) {
+      timeBasedStatus = 'DRAW_CLOSED';
+    } else {
+      if (curTimeStr < startTime) {
+        timeBasedStatus = 'BEFORE_DRAW';
+      } else if (curTimeStr >= startTime && curTimeStr < endTime) {
+        timeBasedStatus = 'LIVE_DRAW';
+      } else {
+        timeBasedStatus = 'DRAW_CLOSED';
+      }
+    }
+
+    // Check automatic data cleanup past end time
+    if (autoCleanup && (curDateStr > eventDate || (curDateStr === eventDate && curTimeStr >= endTime))) {
+      if (db.participants.length > 0 && !db.winners) {
+        // Only wipe if winners haven't been selected or if explicitly configured
+      }
     }
 
     const effectiveStatus: DrawState = db.winners
       ? 'WINNERS_PUBLISHED'
       : db.emergencyClosed
       ? 'DRAW_CLOSED'
-      : db.statusOverride === 'AUTO'
-      ? 'LIVE_DRAW'
+      : db.statusOverride === 'AUTO' || !db.statusOverride
+      ? timeBasedStatus
       : db.statusOverride;
 
     return {
@@ -174,12 +187,12 @@ export const apiService = {
       end_time: endTime,
       timezone: 'Asia/Kolkata',
       status: effectiveStatus,
-      server_time_ist: new Date().toISOString(),
+      server_time_ist: nowIst.toISOString(),
       total_participants: db.participants.length,
       winners_selected: db.winners !== null,
       emergency_closed: db.emergencyClosed,
       auto_cleanup_after_end: autoCleanup,
-      manual_override: db.statusOverride,
+      manual_override: db.statusOverride || 'AUTO',
     };
   },
 
