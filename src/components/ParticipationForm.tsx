@@ -11,6 +11,7 @@ interface ParticipationFormProps {
   onSuccess: (participant: { name: string; lucky_number: number; played_at: string }, isAlready: boolean) => void;
   lastParticipant?: Participant | null;
   startTime?: string;
+  endTime?: string;
   eventDate?: string;
 }
 
@@ -19,6 +20,7 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
   onSuccess,
   lastParticipant,
   startTime,
+  endTime,
   eventDate,
 }) => {
   const [name, setName] = useState('');
@@ -28,6 +30,7 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
 
   const isLive = status === 'LIVE_DRAW' || status === 'LIVE';
   const isBefore = status === 'BEFORE_DRAW' || status === 'SCHEDULED';
+  const isClosed = status === 'DRAW_CLOSED' || status === 'CLOSED' || status === 'WINNERS_PUBLISHED';
 
   const validateInputs = (): string | null => {
     const cleanName = name.trim().replace(/\s+/g, ' ');
@@ -73,8 +76,8 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
     if (!isLive) {
       setErrorMsg(
         isBefore
-          ? 'The lucky draw participation is not open yet. It will open automatically when the countdown completes.'
-          : 'The lucky draw is currently closed.'
+          ? `The lucky draw is locked. Participation automatically opens at ${formatDisplayTime(startTime)} IST.`
+          : `The lucky draw is closed. Entries closed at ${formatDisplayTime(endTime)} IST.`
       );
       soundFx.playError();
       return;
@@ -114,14 +117,37 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
           </p>
         </div>
 
-        {/* Locked Before Draw Notice */}
+        {/* Phase 1: Locked Before Start Time Banner */}
         {isBefore && !lastParticipant && (
-          <div className="p-3.5 rounded-xl bg-blue-950/70 border border-blue-500/40 flex items-start gap-2.5 text-xs text-blue-200">
-            <span className="text-sm">⏳</span>
+          <div className="p-3.5 rounded-xl bg-amber-950/60 border border-amber-500/40 flex items-start gap-2.5 text-xs text-amber-200">
+            <span className="text-base mt-0.5">🔒</span>
             <div>
-              <span className="font-bold block text-white">Participation Locked Until Draw Starts</span>
-              <p className="text-[11px] text-blue-300/80 mt-0.5">
-                The lucky draw will automatically open at <strong className="text-gold-300">{formatDisplayTime(startTime)} IST</strong> on {formatDisplayDate(eventDate)}. Entries cannot be submitted before start time.
+              <span className="font-bold block text-white">Input Fields Locked (Draw Has Not Started)</span>
+              <p className="text-[11px] text-amber-300/90 mt-0.5">
+                Inputs will <strong className="text-gold-300">automatically unlock</strong> at <strong className="text-gold-300">{formatDisplayTime(startTime)} IST</strong> on {formatDisplayDate(eventDate)}. No entries can be typed or submitted before start time.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Phase 2: Live Unlocked Banner */}
+        {isLive && !lastParticipant && (
+          <div className="p-3 rounded-xl bg-emerald-950/50 border border-emerald-500/40 flex items-center gap-2.5 text-xs text-emerald-200">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+            <span className="text-emerald-100 font-medium">
+              🟢 <strong>Lucky Draw is LIVE!</strong> Input fields are unlocked. Fill your details below.
+            </span>
+          </div>
+        )}
+
+        {/* Phase 3: Closed After End Time Banner */}
+        {isClosed && !lastParticipant && (
+          <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-500/40 flex items-start gap-2.5 text-xs text-red-200">
+            <span className="text-base mt-0.5">🔒</span>
+            <div>
+              <span className="font-bold block text-white">Input Fields Locked (Draw Has Ended)</span>
+              <p className="text-[11px] text-red-300/90 mt-0.5">
+                Lucky draw entries closed at {formatDisplayTime(endTime)} IST. Check the prize podium above for winner results!
               </p>
             </div>
           </div>

@@ -140,9 +140,15 @@ export const App: React.FC = () => {
       const remaining = calculateTimeRemaining(target);
       setTimeRemaining(remaining);
 
-      // Auto-unlock draw in real-time when countdown hits 0
-      if (remaining.isPast && (drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED')) {
-        fetchData();
+      // Automatic real-time status transitions:
+      // 1. When start countdown reaches 0: auto-unlock from BEFORE_DRAW to LIVE_DRAW
+      // 2. When live draw countdown reaches 0: auto-lock from LIVE_DRAW to DRAW_CLOSED
+      if (remaining.isPast) {
+        if (drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED') {
+          fetchData();
+        } else if (drawSettings.status === 'LIVE_DRAW' || drawSettings.status === 'LIVE') {
+          fetchData();
+        }
       }
     };
 
@@ -254,6 +260,7 @@ export const App: React.FC = () => {
           onSuccess={handleParticipationSuccess}
           lastParticipant={lastUserTicket}
           startTime={drawSettings.start_time}
+          endTime={drawSettings.end_time}
           eventDate={drawSettings.event_date}
         />
 
