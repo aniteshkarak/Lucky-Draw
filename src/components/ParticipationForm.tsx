@@ -159,24 +159,32 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="p-name" className="block text-xs font-semibold text-gray-300 mb-1">
-              Full Name
-            </label>
+            <div className="flex justify-between items-center mb-1">
+              <label htmlFor="p-name" className="block text-xs font-semibold text-gray-300">
+                Full Name
+              </label>
+              {isBefore && !lastParticipant && (
+                <span className="text-[10px] text-amber-400 font-mono flex items-center gap-1">
+                  🔒 Locked until {formatDisplayTime(startTime)}
+                </span>
+              )}
+            </div>
             <input
               id="p-name"
               type="text"
               required
+              readOnly={!isLive}
               disabled={!isLive || isLoading || Boolean(lastParticipant)}
               placeholder={
                 lastParticipant
                   ? lastParticipant.name
                   : isBefore
-                  ? `Locked until ${formatDisplayTime(startTime)}`
+                  ? `Locked until ${formatDisplayTime(startTime)} IST`
                   : "e.g. Rahul Sharma"
               }
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-[#0e0d1a] border border-gold-500/20 text-white placeholder-gray-500 focus:outline-none focus:border-gold-400 text-sm disabled:opacity-50"
+              className="w-full px-4 py-3 rounded-xl bg-[#0e0d1a] border border-gold-500/20 text-white placeholder-gray-500 focus:outline-none focus:border-gold-400 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-[#0a0814] disabled:border-gray-800 disabled:text-gray-500 transition-all"
             />
           </div>
 
@@ -185,7 +193,9 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
               <label htmlFor="p-mobile" className="block text-xs font-semibold text-gray-300">
                 10-Digit Mobile Number
               </label>
-              <span className="text-[10px] text-gray-400">🔒 Never shown publicly</span>
+              <span className="text-[10px] text-gray-400">
+                {isBefore ? '🔒 Locked' : '🔒 Never shown publicly'}
+              </span>
             </div>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs font-bold text-gray-400 font-mono">
@@ -197,6 +207,7 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
                 inputMode="numeric"
                 maxLength={10}
                 required
+                readOnly={!isLive}
                 disabled={!isLive || isLoading || Boolean(lastParticipant)}
                 placeholder={
                   lastParticipant
@@ -207,7 +218,7 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
                 }
                 value={mobile}
                 onChange={(e) => setMobile(e.target.value.replace(/[^0-9]/g, ''))}
-                className="w-full pl-11 pr-4 py-3 rounded-xl bg-[#0e0d1a] border border-gold-500/20 text-white placeholder-gray-500 font-mono text-sm focus:outline-none focus:border-gold-400 disabled:opacity-50"
+                className="w-full pl-11 pr-4 py-3 rounded-xl bg-[#0e0d1a] border border-gold-500/20 text-white placeholder-gray-500 font-mono text-sm focus:outline-none focus:border-gold-400 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-[#0a0814] disabled:border-gray-800 disabled:text-gray-500 transition-all"
               />
             </div>
           </div>
@@ -215,7 +226,7 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
           <button
             type="submit"
             disabled={!isLive || isLoading || Boolean(lastParticipant)}
-            className="w-full py-3.5 px-4 rounded-xl bg-gold-500 hover:bg-gold-400 disabled:bg-gray-800 disabled:text-gray-500 text-black font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-gold-500/10 disabled:cursor-not-allowed"
+            className="w-full py-3.5 px-4 rounded-xl bg-gold-500 hover:bg-gold-400 disabled:bg-[#151322] disabled:border disabled:border-gray-700/60 disabled:text-gray-400 text-black font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-gold-500/10 disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <>
@@ -225,7 +236,7 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
             ) : lastParticipant ? (
               <span>✓ Already Entered (#{lastParticipant.lucky_number})</span>
             ) : isBefore ? (
-              <span>⏳ Opens at {formatDisplayTime(startTime)} IST</span>
+              <span>🔒 Locked • Opens at {formatDisplayTime(startTime)} IST</span>
             ) : !isLive ? (
               <span>🔒 Draw Closed</span>
             ) : (
