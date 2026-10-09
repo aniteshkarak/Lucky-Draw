@@ -120,6 +120,13 @@ DECLARE
 BEGIN
     SELECT * INTO v_settings FROM draw_settings LIMIT 1;
     
+    -- Auto-seed draw_settings if table was empty
+    IF v_settings.id IS NULL THEN
+        INSERT INTO draw_settings (event_date, start_time, end_time, timezone, status, auto_cleanup_after_end)
+        VALUES ('2026-10-09', '09:00:00', '20:00:00', 'Asia/Kolkata', 'SCHEDULED', true)
+        RETURNING * INTO v_settings;
+    END IF;
+
     -- Convert server time to Asia/Kolkata
     v_now_ist := (now() AT TIME ZONE 'Asia/Kolkata');
     v_current_time := v_now_ist::TIME;
@@ -129,8 +136,8 @@ BEGIN
     IF v_settings.auto_cleanup_after_end AND 
        (v_current_date > v_settings.event_date OR (v_current_date = v_settings.event_date AND v_current_time >= v_settings.end_time)) THEN
         IF EXISTS (SELECT 1 FROM participants) OR EXISTS (SELECT 1 FROM winners) THEN
-            DELETE FROM winners;
-            DELETE FROM participants;
+            DELETE FROM winners WHERE id IS NOT NULL;
+            DELETE FROM participants WHERE id IS NOT NULL;
         END IF;
     END IF;
 
@@ -724,8 +731,8 @@ BEGIN
     END IF;
 
     -- 2. Clear winners & participants atomically
-    DELETE FROM winners;
-    DELETE FROM participants;
+    DELETE FROM winners WHERE id IS NOT NULL;
+    DELETE FROM participants WHERE id IS NOT NULL;
     GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
 
     -- Reset draw status to SCHEDULED
