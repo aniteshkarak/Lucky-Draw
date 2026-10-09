@@ -74,7 +74,7 @@ export const WinnerRevealSection: React.FC<WinnerRevealSectionProps> = ({
 
         <p className="text-xs sm:text-sm text-gray-400 max-w-xl mx-auto">
           {hasWinners
-            ? 'Congratulations to the official winners of Dada\'s Birthday Lucky Draw! All prizes are permanently locked.'
+            ? 'Congratulations to the official winners of Reon & Priyanka\'s Wedding Lucky Draw! All prizes are permanently locked.'
             : 'Winners will be randomly drawn from all registered participants at 9:00 PM IST.'}
         </p>
       </div>

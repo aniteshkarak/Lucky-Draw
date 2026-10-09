@@ -3,7 +3,7 @@
  */
 
 export const EVENT_CONFIG = {
-  TITLE: "Dada's Birthday Lucky Draw",
+  TITLE: "Reon & Priyanka Wedding Lucky Draw",
   EVENT_DATE_STR: "25 October",
   EVENT_YEAR: 2026,
   EVENT_MONTH: 9, // October (0-indexed: 9)
