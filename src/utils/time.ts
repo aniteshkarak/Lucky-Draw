@@ -20,8 +20,8 @@ export const EVENT_CONFIG = {
  * Parses an IST date string (YYYY-MM-DD) and time string (HH:MM:SS) into a UTC JavaScript Date
  */
 export function parseISTDate(dateStr?: string, timeStr?: string): Date {
-  const safeDate = dateStr || '2026-10-09';
-  const safeTime = timeStr || '20:00:00';
+  const safeDate = dateStr || '2026-10-10';
+  const safeTime = timeStr || '09:00:00';
   const [year, month, day] = safeDate.split('-').map(Number);
   const [hour, min, sec] = safeTime.split(':').map(Number);
 

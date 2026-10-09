@@ -42,11 +42,40 @@ export const LuckyTicketModal: React.FC<LuckyTicketModalProps> = ({
 
   if (!isOpen || !participant) return null;
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     soundFx.playClick();
-    navigator.clipboard.writeText(String(participant.lucky_number));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    const textToCopy = String(participant.lucky_number);
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      } catch {
+        // ignore
+      }
+    }
   };
 
   const formattedTime = formatPlayedAt(participant.played_at);

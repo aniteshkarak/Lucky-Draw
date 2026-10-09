@@ -34,7 +34,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     return 'Draw Closed';
   };
 
-  const isCtaDisabled = isBefore || (!isLive && !isWinners);
+  const isCtaDisabled = !isLive && !isWinners && !isBefore;
 
   return (
     <section className="pt-6 pb-10 px-4 text-center max-w-4xl mx-auto space-y-6">
@@ -143,6 +143,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               ? 'bg-gold-500 hover:bg-gold-400 text-black shadow-lg shadow-gold-500/20'
               : isWinners
               ? 'bg-gold-500 text-black font-bold'
+              : isBefore
+              ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 shadow-md'
               : 'bg-gray-800 text-gray-400 border border-gray-700 cursor-not-allowed'
           }`}
         >
