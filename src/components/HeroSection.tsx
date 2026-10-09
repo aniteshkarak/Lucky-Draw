@@ -45,21 +45,21 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         <Heart className="w-3.5 h-3.5 text-rose-400 fill-rose-400" />
       </div>
 
-      {/* Couple Portrait Card Showcase */}
-      <div className="relative max-w-xs sm:max-w-sm mx-auto my-2">
+      {/* Couple Portrait Card Showcase - Full Picture Display */}
+      <div className="relative max-w-xs sm:max-w-md mx-auto my-2">
         <div className="absolute -inset-1.5 bg-gradient-to-r from-rose-500 via-gold-400 to-amber-500 rounded-3xl blur-md opacity-40 animate-pulse" />
-        <div className="relative rounded-2xl overflow-hidden border-2 border-gold-400/50 shadow-2xl bg-[#161326]">
+        <div className="relative rounded-2xl overflow-hidden border-2 border-gold-400/50 shadow-2xl bg-[#161326] flex flex-col">
           <img
             src="/assets/couple.jpg"
-            alt="Reon Merchant & Priyanka Wedding Celebration"
-            className="w-full h-auto object-cover max-h-[380px] sm:max-h-[440px] hover:scale-105 transition-transform duration-700"
+            alt="Reon & Priyanka Wedding Celebration"
+            className="w-full h-auto object-contain block hover:scale-[1.02] transition-transform duration-700"
             loading="eager"
           />
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 text-center">
+          <div className="bg-gradient-to-t from-[#0e0c1a] via-[#141224] to-[#161326] p-3.5 sm:p-4 text-center border-t border-gold-500/20">
             <h3 className="font-serif-luxury text-xl sm:text-2xl font-bold text-white tracking-wide">
               Reon <span className="text-rose-300 font-serif italic">&</span> Priyanka
             </h3>
-            <p className="text-[11px] text-gold-300 tracking-widest uppercase font-medium">
+            <p className="text-[11px] text-gold-300 tracking-widest uppercase font-medium mt-0.5">
               Forever Together • Wedding Celebration
             </p>
           </div>
