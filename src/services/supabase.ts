@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 import { DrawSettings, DrawState, Participant, ParticipationResult, WinnersData } from '../types';
+import { parseISTDate } from '../utils/time';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -64,10 +65,10 @@ function getMockDB(): MockStorage {
     // Ignore parse error
   }
 
-  // Default test schedule: 9:00 AM (09:00) to 8:00 PM (20:00) IST
+  // Default test schedule: 9:00 AM (09:00) to 11:59 PM (23:59) IST
   const eventDate = '2026-10-09';
   const startTime = '09:00:00';
-  const endTime = '20:00:00';
+  const endTime = '23:59:00';
   const eventId = `event_${eventDate}_${startTime.slice(0, 2)}${startTime.slice(3, 5)}`;
 
   const initial: MockStorage = {
@@ -155,7 +156,7 @@ export const apiService = {
     const db = getMockDB();
     const eventDate = db.eventDate || '2026-10-09';
     const startTime = db.startTime || '09:00:00';
-    const endTime = db.endTime || '20:00:00';
+    const endTime = db.endTime || '23:59:00';
     const autoCleanup = db.autoCleanupAfterEnd ?? true;
     const eventId = db.eventId || `event_${eventDate}_${startTime.replace(/:/g, '').slice(0, 4)}_${endTime.replace(/:/g, '').slice(0, 4)}`;
 
@@ -166,6 +167,22 @@ export const apiService = {
     const curDay = String(nowIst.getDate()).padStart(2, '0');
     const curDateStr = `${curYear}-${curMonth}-${curDay}`;
     const curTimeStr = `${String(nowIst.getHours()).padStart(2, '0')}:${String(nowIst.getMinutes()).padStart(2, '0')}:${String(nowIst.getSeconds()).padStart(2, '0')}`;
+
+    // Automatic Data Cleanup: Only delete data 2 FULL HOURS after the draw end time
+    const endDateTime = parseISTDate(eventDate, endTime);
+    const twoHoursAfterEndMs = endDateTime.getTime() + 2 * 60 * 60 * 1000;
+    const nowMs = new Date().getTime();
+
+    if (autoCleanup && nowMs >= twoHoursAfterEndMs) {
+      if (db.participants.length > 0 || db.winners) {
+        db.participants = [];
+        db.winners = null;
+        db.statusOverride = 'SCHEDULED';
+        db.eventId = `event_${Date.now()}`;
+        saveMockDB(db);
+        notifySubscribers();
+      }
+    }
 
     let timeBasedStatus: DrawState = 'LIVE_DRAW';
     if (curDateStr < eventDate) {

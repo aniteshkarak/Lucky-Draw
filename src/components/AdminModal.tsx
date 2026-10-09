@@ -21,7 +21,7 @@ import {
 import { DrawSettings, Participant, WinnersData, DrawState } from '../types';
 import { apiService } from '../services/supabase';
 import { soundFx } from '../utils/audio';
-import { formatPlayedAt, formatDisplayDate } from '../utils/time';
+import { formatPlayedAt } from '../utils/time';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -250,9 +250,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       const tomorrowStr = '2026-10-09';
       setScheduleDate(tomorrowStr);
       setScheduleStartTime('09:00');
-      setScheduleEndTime('20:00');
+      setScheduleEndTime('23:59');
       setAutoCleanup(true);
-      handleSaveSchedule(tomorrowStr, '09:00:00', '20:00:00', true);
+      handleSaveSchedule(tomorrowStr, '09:00:00', '23:59:00', true);
     } else {
       const weddingDate = '2026-10-25';
       setScheduleDate(weddingDate);
@@ -582,9 +582,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     >
                       <Zap className="w-4 h-4 text-gold-400 shrink-0 mt-0.5" />
                       <div>
-                        <div className="font-bold text-white">⚡ Tomorrow Test Schedule</div>
+                        <div className="font-bold text-white">⚡ Today / Test Schedule</div>
                         <div className="text-[10px] text-gold-300/80 font-normal">
-                          9:00 AM – 8:00 PM IST • Auto-Wipe ON
+                          9:00 AM – 11:59 PM IST • Auto-Wipe 2hr after end
                         </div>
                       </div>
                     </button>
@@ -652,10 +652,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   />
                   <div className="text-xs">
                     <span className="font-bold text-white">
-                      Auto-delete all participants & winners when draw ends
+                      Auto-delete participants & winners 2 hours after draw ends
                     </span>
                     <p className="text-[11px] text-gray-400">
-                      Instantly cleans test database right after {formatDisplayDate(scheduleDate)} at {scheduleEndTime} IST.
+                      Gives everyone 2 full hours after the draw ends to view the winners and results before cleaning test data.
                     </p>
                   </div>
                 </label>

@@ -132,9 +132,9 @@ BEGIN
     v_current_time := v_now_ist::TIME;
     v_current_date := v_now_ist::DATE;
 
-    -- Automatic Data Cleanup: If past end time and auto_cleanup_after_end is true, wipe test participants & winners
+    -- Automatic Data Cleanup: If 2 hours past end time and auto_cleanup_after_end is true, wipe test participants & winners
     IF v_settings.auto_cleanup_after_end AND 
-       (v_current_date > v_settings.event_date OR (v_current_date = v_settings.event_date AND v_current_time >= v_settings.end_time)) THEN
+       ((v_settings.event_date + v_settings.end_time + INTERVAL '2 hours') <= (v_current_date + v_current_time)) THEN
         IF EXISTS (SELECT 1 FROM participants) OR EXISTS (SELECT 1 FROM winners) THEN
             DELETE FROM winners WHERE id IS NOT NULL;
             DELETE FROM participants WHERE id IS NOT NULL;
