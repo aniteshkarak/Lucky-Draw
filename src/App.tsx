@@ -139,12 +139,17 @@ export const App: React.FC = () => {
 
       const remaining = calculateTimeRemaining(target);
       setTimeRemaining(remaining);
+
+      // Auto-unlock draw in real-time when countdown hits 0
+      if (remaining.isPast && (drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED')) {
+        fetchData();
+      }
     };
 
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, [drawSettings.status, drawSettings.event_date, drawSettings.start_time, drawSettings.end_time]);
+  }, [drawSettings.status, drawSettings.event_date, drawSettings.start_time, drawSettings.end_time, fetchData]);
 
   const handleParticipationSuccess = (
     participant: { name: string; lucky_number: number; played_at: string },
@@ -248,6 +253,8 @@ export const App: React.FC = () => {
           status={drawSettings.status}
           onSuccess={handleParticipationSuccess}
           lastParticipant={lastUserTicket}
+          startTime={drawSettings.start_time}
+          eventDate={drawSettings.event_date}
         />
 
         {/* 4. Pre-winners preview (if not yet published) */}
