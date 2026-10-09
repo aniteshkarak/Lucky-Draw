@@ -10,6 +10,7 @@ export type DrawState =
 export interface Participant {
   serial_no: number;
   id?: string;
+  event_id?: string;
   name: string;
   lucky_number: number;
   played_at: string;
@@ -17,6 +18,7 @@ export interface Participant {
 }
 
 export interface DrawSettings {
+  event_id?: string;
   event_date: string;
   start_time: string;
   end_time: string;
@@ -36,6 +38,7 @@ export interface WinnerPrize {
 }
 
 export interface WinnersData {
+  event_id?: string;
   winners_exist: boolean;
   selected_at?: string;
   first_prize?: WinnerPrize | null;
@@ -48,10 +51,19 @@ export interface ParticipationResult {
   already_registered?: boolean;
   participant?: {
     id?: string;
+    event_id?: string;
     name: string;
     lucky_number: number;
     played_at: string;
   };
   message: string;
   code?: string;
+}
+
+export interface LocalParticipationRecord {
+  event_id: string;
+  name: string;
+  lucky_number: number;
+  status: 'REGISTERED' | 'CONFIRMED';
+  played_at: string;
 }

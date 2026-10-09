@@ -50,6 +50,13 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
     e.preventDefault();
     setErrorMsg(null);
 
+    // Prevent duplicate participation if this browser already participated in this event (Requirement 3)
+    if (lastParticipant) {
+      soundFx.playTicketReveal();
+      onSuccess(lastParticipant, true);
+      return;
+    }
+
     const validationError = validateInputs();
     if (validationError) {
       setErrorMsg(validationError);
@@ -117,7 +124,7 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
               }}
               className="px-2.5 py-1 rounded-lg bg-gold-500 text-black font-bold text-xs cursor-pointer"
             >
-              View
+              View Ticket
             </button>
           </div>
         )}
@@ -140,8 +147,8 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
               id="p-name"
               type="text"
               required
-              disabled={!isLive || isLoading}
-              placeholder="e.g. Rahul Sharma"
+              disabled={!isLive || isLoading || Boolean(lastParticipant)}
+              placeholder={lastParticipant ? lastParticipant.name : "e.g. Rahul Sharma"}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-3 rounded-xl bg-[#0e0d1a] border border-gold-500/20 text-white placeholder-gray-500 focus:outline-none focus:border-gold-400 text-sm disabled:opacity-50"
@@ -165,8 +172,8 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
                 inputMode="numeric"
                 maxLength={10}
                 required
-                disabled={!isLive || isLoading}
-                placeholder="9876543210"
+                disabled={!isLive || isLoading || Boolean(lastParticipant)}
+                placeholder={lastParticipant ? "Already Registered" : "9876543210"}
                 value={mobile}
                 onChange={(e) => setMobile(e.target.value.replace(/[^0-9]/g, ''))}
                 className="w-full pl-11 pr-4 py-3 rounded-xl bg-[#0e0d1a] border border-gold-500/20 text-white placeholder-gray-500 font-mono text-sm focus:outline-none focus:border-gold-400 disabled:opacity-50"
@@ -176,7 +183,7 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
 
           <button
             type="submit"
-            disabled={!isLive || isLoading}
+            disabled={!isLive || isLoading || Boolean(lastParticipant)}
             className="w-full py-3.5 px-4 rounded-xl bg-gold-500 hover:bg-gold-400 disabled:bg-gray-800 disabled:text-gray-500 text-black font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-gold-500/10 disabled:cursor-not-allowed"
           >
             {isLoading ? (
@@ -184,6 +191,8 @@ export const ParticipationForm: React.FC<ParticipationFormProps> = ({
                 <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
                 <span>Generating number...</span>
               </>
+            ) : lastParticipant ? (
+              <span>✓ Already Entered (#{lastParticipant.lucky_number})</span>
             ) : (
               <span>🎲 Get My Lucky Number</span>
             )}

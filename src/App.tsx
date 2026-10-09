@@ -17,6 +17,12 @@ import {
   parseISTDate,
   TimeRemaining,
 } from './utils/time';
+import {
+  getEventParticipation,
+  saveEventParticipation,
+  clearFinalizedEventParticipation,
+  handleNewEventTransition,
+} from './utils/storage';
 
 export const App: React.FC = () => {
   // State
@@ -47,7 +53,7 @@ export const App: React.FC = () => {
   } | null>(null);
   const [isAlreadyTicket, setIsAlreadyTicket] = useState<boolean>(false);
 
-  // Cached user ticket for convenience
+  // Cached user ticket for current event
   const [lastUserTicket, setLastUserTicket] = useState<Participant | null>(null);
 
   // Countdown timer calculation
@@ -69,10 +75,37 @@ export const App: React.FC = () => {
         apiService.getPublicWinners(),
       ]);
 
+      const eventId =
+        settings.event_id ||
+        `event_${settings.event_date}_${settings.start_time.replace(/:/g, '').slice(0, 4)}_${settings.end_time.replace(/:/g, '').slice(0, 4)}`;
+
+      // Ensure new event transition handles previous events (Requirement 5 & 8)
+      handleNewEventTransition(eventId);
+
       setDrawSettings(settings);
       setParticipants(partData.participants);
       setTotalCount(partData.total_count);
       setWinnersData(winData);
+
+      // Requirement 4 & 6: Automatically clear previous event's local records ONLY when winners are announced & finalized
+      if (winData.winners_exist && settings.status === 'WINNERS_PUBLISHED') {
+        clearFinalizedEventParticipation(eventId);
+        setLastUserTicket(null);
+      } else {
+        // Requirement 2 & 3: Check localStorage for participation record for THIS specific event ID
+        const localRecord = getEventParticipation(eventId);
+        if (localRecord) {
+          setLastUserTicket({
+            serial_no: 0,
+            event_id: localRecord.event_id,
+            name: localRecord.name,
+            lucky_number: localRecord.lucky_number,
+            played_at: localRecord.played_at,
+          });
+        } else {
+          setLastUserTicket(null);
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch draw data:', err);
     } finally {
@@ -86,16 +119,6 @@ export const App: React.FC = () => {
     const unsubscribe = apiService.subscribeToUpdates(() => {
       fetchData();
     });
-
-    // Check localStorage for previously saved ticket on this browser
-    try {
-      const stored = localStorage.getItem('dada_my_ticket');
-      if (stored) {
-        setLastUserTicket(JSON.parse(stored));
-      }
-    } catch {
-      // ignore
-    }
 
     return () => {
       unsubscribe();
@@ -127,22 +150,29 @@ export const App: React.FC = () => {
     participant: { name: string; lucky_number: number; played_at: string },
     isAlready: boolean
   ) => {
+    const currentEventId =
+      drawSettings.event_id ||
+      `event_${drawSettings.event_date}_${drawSettings.start_time.replace(/:/g, '').slice(0, 4)}_${drawSettings.end_time.replace(/:/g, '').slice(0, 4)}`;
+
+    // Save participation record to localStorage under lucky_draw_participation_<event_id> (Requirement 2)
+    saveEventParticipation(currentEventId, {
+      name: participant.name,
+      lucky_number: participant.lucky_number,
+      played_at: participant.played_at,
+    });
+
     setActiveTicket(participant);
     setIsAlreadyTicket(isAlready);
     setIsTicketOpen(true);
 
     const ticketObj: Participant = {
       serial_no: totalCount + 1,
+      event_id: currentEventId,
       name: participant.name,
       lucky_number: participant.lucky_number,
       played_at: participant.played_at,
     };
     setLastUserTicket(ticketObj);
-    try {
-      localStorage.setItem('dada_my_ticket', JSON.stringify(ticketObj));
-    } catch {
-      // ignore
-    }
 
     fetchData();
   };

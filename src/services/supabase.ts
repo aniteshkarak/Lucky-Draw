@@ -27,8 +27,10 @@ export const supabase: SupabaseClient | null = isConfigured
 // ==============================================================================
 
 interface MockStorage {
+  eventId: string;
   participants: Array<{
     id: string;
+    event_id: string;
     name: string;
     mobile: string;
     lucky_number: number;
@@ -36,6 +38,7 @@ interface MockStorage {
     created_at: string;
   }>;
   winners: {
+    event_id: string;
     first_prize: { name: string; lucky_number: number } | null;
     second_prize: { name: string; lucky_number: number } | null;
     third_prize: { name: string; lucky_number: number } | null;
@@ -49,7 +52,7 @@ interface MockStorage {
   autoCleanupAfterEnd?: boolean;
 }
 
-const STORAGE_KEY = 'dada_lucky_draw_db_v1';
+const STORAGE_KEY = 'lucky_draw_db_v3';
 
 function getMockDB(): MockStorage {
   try {
@@ -62,20 +65,26 @@ function getMockDB(): MockStorage {
   }
 
   // Default test schedule: 9:00 AM (09:00) to 8:00 PM (20:00) IST
+  const eventDate = '2026-10-09';
+  const startTime = '09:00:00';
+  const endTime = '20:00:00';
+  const eventId = `event_${eventDate}_${startTime.slice(0, 2)}${startTime.slice(3, 5)}`;
+
   const initial: MockStorage = {
+    eventId,
     participants: [
-      { id: '1', name: 'Aarav Sharma', mobile: '9876543210', lucky_number: 38472, played_at: new Date(Date.now() - 3600000).toISOString(), created_at: new Date(Date.now() - 3600000).toISOString() },
-      { id: '2', name: 'Priya Mukherjee', mobile: '9876543211', lucky_number: 81924, played_at: new Date(Date.now() - 2800000).toISOString(), created_at: new Date(Date.now() - 2800000).toISOString() },
-      { id: '3', name: 'Rohan Sen', mobile: '9876543212', lucky_number: 15683, played_at: new Date(Date.now() - 1900000).toISOString(), created_at: new Date(Date.now() - 1900000).toISOString() },
-      { id: '4', name: 'Sneha Bose', mobile: '9876543213', lucky_number: 62419, played_at: new Date(Date.now() - 1200000).toISOString(), created_at: new Date(Date.now() - 1200000).toISOString() },
-      { id: '5', name: 'Debabrata Das', mobile: '9876543214', lucky_number: 94017, played_at: new Date(Date.now() - 500000).toISOString(), created_at: new Date(Date.now() - 500000).toISOString() },
+      { id: '1', event_id: eventId, name: 'Aarav Sharma', mobile: '9876543210', lucky_number: 38472, played_at: new Date(Date.now() - 3600000).toISOString(), created_at: new Date(Date.now() - 3600000).toISOString() },
+      { id: '2', event_id: eventId, name: 'Priya Mukherjee', mobile: '9876543211', lucky_number: 81924, played_at: new Date(Date.now() - 2800000).toISOString(), created_at: new Date(Date.now() - 2800000).toISOString() },
+      { id: '3', event_id: eventId, name: 'Rohan Sen', mobile: '9876543212', lucky_number: 15683, played_at: new Date(Date.now() - 1900000).toISOString(), created_at: new Date(Date.now() - 1900000).toISOString() },
+      { id: '4', event_id: eventId, name: 'Sneha Bose', mobile: '9876543213', lucky_number: 62419, played_at: new Date(Date.now() - 1200000).toISOString(), created_at: new Date(Date.now() - 1200000).toISOString() },
+      { id: '5', event_id: eventId, name: 'Debabrata Das', mobile: '9876543214', lucky_number: 94017, played_at: new Date(Date.now() - 500000).toISOString(), created_at: new Date(Date.now() - 500000).toISOString() },
     ],
     winners: null,
     statusOverride: 'LIVE_DRAW',
     emergencyClosed: false,
-    eventDate: '2026-10-09',
-    startTime: '09:00:00',
-    endTime: '20:00:00',
+    eventDate,
+    startTime,
+    endTime,
     autoCleanupAfterEnd: true,
   };
   saveMockDB(initial);
@@ -117,10 +126,16 @@ export const apiService = {
       try {
         const { data, error } = await supabase.rpc('get_draw_status');
         if (!error && data) {
+          const eventDate = data.event_date || '2026-10-09';
+          const startTime = data.start_time || '09:00:00';
+          const endTime = data.end_time || '20:00:00';
+          const eventId = data.event_id || `event_${eventDate}_${startTime.replace(/:/g, '').slice(0, 4)}_${endTime.replace(/:/g, '').slice(0, 4)}`;
+
           return {
-            event_date: data.event_date || '2026-10-09',
-            start_time: data.start_time || '09:00:00',
-            end_time: data.end_time || '20:00:00',
+            event_id: eventId,
+            event_date: eventDate,
+            start_time: startTime,
+            end_time: endTime,
             timezone: data.timezone || 'Asia/Kolkata',
             status: data.status as DrawState,
             server_time_ist: data.server_time_ist || new Date().toISOString(),
@@ -142,6 +157,7 @@ export const apiService = {
     const startTime = db.startTime || '09:00:00';
     const endTime = db.endTime || '20:00:00';
     const autoCleanup = db.autoCleanupAfterEnd ?? true;
+    const eventId = db.eventId || `event_${eventDate}_${startTime.replace(/:/g, '').slice(0, 4)}_${endTime.replace(/:/g, '').slice(0, 4)}`;
 
     // Calculate dynamic IST date & time
     const nowIst = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
@@ -166,13 +182,6 @@ export const apiService = {
       }
     }
 
-    // Check automatic data cleanup past end time
-    if (autoCleanup && (curDateStr > eventDate || (curDateStr === eventDate && curTimeStr >= endTime))) {
-      if (db.participants.length > 0 && !db.winners) {
-        // Only wipe if winners haven't been selected or if explicitly configured
-      }
-    }
-
     const effectiveStatus: DrawState = db.winners
       ? 'WINNERS_PUBLISHED'
       : db.emergencyClosed
@@ -182,6 +191,7 @@ export const apiService = {
       : db.statusOverride;
 
     return {
+      event_id: eventId,
       event_date: eventDate,
       start_time: startTime,
       end_time: endTime,
@@ -222,8 +232,9 @@ export const apiService = {
     }
 
     // Mock / Offline Handler
-    await new Promise((resolve) => setTimeout(resolve, 650)); // Simulating realistic server latency
+    await new Promise((resolve) => setTimeout(resolve, 400)); // Simulating latency
     const db = getMockDB();
+    const eventId = db.eventId || 'current_event';
 
     // 1. Sanitize name
     const cleanName = name.trim().replace(/\s+/g, ' ');
@@ -273,7 +284,7 @@ export const apiService = {
       };
     }
 
-    // 4. Duplicate mobile check (Idempotent)
+    // 4. Duplicate mobile check (Idempotent for current event)
     const existing = db.participants.find((p) => p.mobile === cleanMobile);
     if (existing) {
       return {
@@ -281,6 +292,7 @@ export const apiService = {
         already_registered: true,
         participant: {
           id: existing.id,
+          event_id: existing.event_id || eventId,
           name: existing.name,
           lucky_number: existing.lucky_number,
           played_at: existing.played_at,
@@ -289,17 +301,18 @@ export const apiService = {
       };
     }
 
-    // 5. Generate unique 5-digit lucky number (10000-99999)
+    // 5. Generate unique 5-digit lucky number (10000-99999) among all participants currently recorded for that event
     const usedNumbers = new Set(db.participants.map((p) => p.lucky_number));
     let luckyNumber = Math.floor(10000 + Math.random() * 90000);
     let attempts = 0;
-    while (usedNumbers.has(luckyNumber) && attempts < 100) {
+    while (usedNumbers.has(luckyNumber) && attempts < 200) {
       luckyNumber = Math.floor(10000 + Math.random() * 90000);
       attempts++;
     }
 
     const newParticipant = {
       id: String(Date.now()),
+      event_id: eventId,
       name: cleanName,
       mobile: cleanMobile,
       lucky_number: luckyNumber,
@@ -316,6 +329,7 @@ export const apiService = {
       already_registered: false,
       participant: {
         id: newParticipant.id,
+        event_id: newParticipant.event_id,
         name: newParticipant.name,
         lucky_number: newParticipant.lucky_number,
         played_at: newParticipant.played_at,
@@ -344,6 +358,7 @@ export const apiService = {
             total_count: data.total_count || 0,
             participants: (data.participants || []).map((p: Participant, idx: number) => ({
               id: p.id,
+              event_id: p.event_id,
               serial_no: p.serial_no || offset + idx + 1,
               name: p.name,
               lucky_number: p.lucky_number,
@@ -375,6 +390,7 @@ export const apiService = {
     const paginated = filtered.slice(offset, offset + limit).map((p, index) => ({
       serial_no: offset + index + 1,
       id: p.id,
+      event_id: p.event_id,
       name: p.name,
       lucky_number: p.lucky_number,
       played_at: p.played_at,
@@ -405,6 +421,7 @@ export const apiService = {
     }
 
     return {
+      event_id: db.winners.event_id,
       winners_exist: true,
       selected_at: db.winners.selected_at,
       first_prize: db.winners.first_prize,
@@ -414,7 +431,7 @@ export const apiService = {
   },
 
   /**
-   * Trigger Winner Selection (Server-Side, Immutable)
+   * Trigger Winner Selection (Server-Side / Local, Immutable)
    */
   async selectWinners(adminPin?: string, force: boolean = true): Promise<{
     success: boolean;
@@ -444,6 +461,7 @@ export const apiService = {
         already_selected: true,
         message: 'Winners have already been drawn and are permanently locked.',
         winners: {
+          event_id: db.winners.event_id,
           winners_exist: true,
           selected_at: db.winners.selected_at,
           first_prize: db.winners.first_prize,
@@ -467,6 +485,7 @@ export const apiService = {
     const third = shuffled[2] || null;
 
     db.winners = {
+      event_id: db.eventId,
       first_prize: { name: first.name, lucky_number: first.lucky_number },
       second_prize: second ? { name: second.name, lucky_number: second.lucky_number } : null,
       third_prize: third ? { name: third.name, lucky_number: third.lucky_number } : null,
@@ -480,6 +499,7 @@ export const apiService = {
       success: true,
       message: 'Winners drawn successfully!',
       winners: {
+        event_id: db.winners.event_id,
         winners_exist: true,
         selected_at: db.winners.selected_at,
         first_prize: db.winners.first_prize,
@@ -537,6 +557,7 @@ export const apiService = {
 
   /**
    * Configure Event Schedule (Date, Start Time, End Time, Auto-Cleanup on Draw End)
+   * Assigns a new unique event ID for the updated schedule/slot.
    */
   async adminConfigureSchedule(
     adminPin: string,
@@ -576,10 +597,12 @@ export const apiService = {
     db.startTime = startTime;
     db.endTime = endTime;
     db.autoCleanupAfterEnd = autoCleanup;
+    // Assign new unique event/slot ID
+    db.eventId = `event_${eventDate}_${startTime.replace(/:/g, '').slice(0, 4)}_${endTime.replace(/:/g, '').slice(0, 4)}`;
     saveMockDB(db);
     notifySubscribers();
 
-    return { success: true, message: 'Schedule and auto-delete settings updated successfully!' };
+    return { success: true, message: 'Schedule and event slot updated successfully!' };
   },
 
   /**
@@ -639,7 +662,7 @@ export const apiService = {
   },
 
   /**
-   * Clear all test participants and reset draw (Admin only)
+   * Clear all test participants and reset draw for a new event slot (Admin only)
    */
   async adminClearAllParticipants(adminPin: string): Promise<{ success: boolean; message: string }> {
     const validPin = import.meta.env.VITE_ADMIN_PIN || 'dada2026';
@@ -660,14 +683,15 @@ export const apiService = {
       }
     }
 
-    // Mock fallback
+    // Mock fallback - start fresh slot
     const db = getMockDB();
     db.participants = [];
     db.winners = null;
     db.statusOverride = 'SCHEDULED';
+    db.eventId = `event_${Date.now()}`;
     saveMockDB(db);
     notifySubscribers();
-    return { success: true, message: 'All participants and test data cleared successfully.' };
+    return { success: true, message: 'All participants cleared and new event slot initialized.' };
   },
 
   /**
