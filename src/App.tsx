@@ -27,11 +27,11 @@ import {
 export const App: React.FC = () => {
   // State
   const [drawSettings, setDrawSettings] = useState<DrawSettings>({
-    event_date: '2026-10-25',
-    start_time: '20:00:00',
-    end_time: '21:00:00',
+    event_date: '2026-10-10',
+    start_time: '09:00:00',
+    end_time: '20:00:00',
     timezone: 'Asia/Kolkata',
-    status: 'LIVE_DRAW',
+    status: 'BEFORE_DRAW',
     server_time_ist: new Date().toISOString(),
     total_participants: 0,
     winners_selected: false,

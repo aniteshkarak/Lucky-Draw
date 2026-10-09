@@ -53,7 +53,7 @@ interface MockStorage {
   autoCleanupAfterEnd?: boolean;
 }
 
-const STORAGE_KEY = 'lucky_draw_db_v3';
+const STORAGE_KEY = 'lucky_draw_db_v4';
 
 function getMockDB(): MockStorage {
   try {
@@ -65,23 +65,17 @@ function getMockDB(): MockStorage {
     // Ignore parse error
   }
 
-  // Default test schedule: 9:00 AM (09:00) to 11:59 PM (23:59) IST
-  const eventDate = '2026-10-09';
+  // Default schedule: Tomorrow 9:00 AM (09:00) to 8:00 PM (20:00) IST
+  const eventDate = '2026-10-10';
   const startTime = '09:00:00';
-  const endTime = '23:59:00';
+  const endTime = '20:00:00';
   const eventId = `event_${eventDate}_${startTime.slice(0, 2)}${startTime.slice(3, 5)}`;
 
   const initial: MockStorage = {
     eventId,
-    participants: [
-      { id: '1', event_id: eventId, name: 'Aarav Sharma', mobile: '9876543210', lucky_number: 38472, played_at: new Date(Date.now() - 3600000).toISOString(), created_at: new Date(Date.now() - 3600000).toISOString() },
-      { id: '2', event_id: eventId, name: 'Priya Mukherjee', mobile: '9876543211', lucky_number: 81924, played_at: new Date(Date.now() - 2800000).toISOString(), created_at: new Date(Date.now() - 2800000).toISOString() },
-      { id: '3', event_id: eventId, name: 'Rohan Sen', mobile: '9876543212', lucky_number: 15683, played_at: new Date(Date.now() - 1900000).toISOString(), created_at: new Date(Date.now() - 1900000).toISOString() },
-      { id: '4', event_id: eventId, name: 'Sneha Bose', mobile: '9876543213', lucky_number: 62419, played_at: new Date(Date.now() - 1200000).toISOString(), created_at: new Date(Date.now() - 1200000).toISOString() },
-      { id: '5', event_id: eventId, name: 'Debabrata Das', mobile: '9876543214', lucky_number: 94017, played_at: new Date(Date.now() - 500000).toISOString(), created_at: new Date(Date.now() - 500000).toISOString() },
-    ],
+    participants: [],
     winners: null,
-    statusOverride: 'LIVE_DRAW',
+    statusOverride: 'AUTO',
     emergencyClosed: false,
     eventDate,
     startTime,
@@ -614,6 +608,8 @@ export const apiService = {
     db.startTime = startTime;
     db.endTime = endTime;
     db.autoCleanupAfterEnd = autoCleanup;
+    db.statusOverride = 'AUTO'; // Ensure state is calculated automatically from new schedule!
+    db.winners = null;
     // Assign new unique event/slot ID
     db.eventId = `event_${eventDate}_${startTime.replace(/:/g, '').slice(0, 4)}_${endTime.replace(/:/g, '').slice(0, 4)}`;
     saveMockDB(db);

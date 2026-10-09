@@ -247,12 +247,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   const handleApplyPreset = (preset: 'TEST_TOMORROW' | 'OFFICIAL_WEDDING') => {
     if (preset === 'TEST_TOMORROW') {
-      const tomorrowStr = '2026-10-09';
+      const now = new Date();
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
       setScheduleDate(tomorrowStr);
       setScheduleStartTime('09:00');
-      setScheduleEndTime('23:59');
+      setScheduleEndTime('20:00');
       setAutoCleanup(true);
-      handleSaveSchedule(tomorrowStr, '09:00:00', '23:59:00', true);
+      handleSaveSchedule(tomorrowStr, '09:00:00', '20:00:00', true);
     } else {
       const weddingDate = '2026-10-25';
       setScheduleDate(weddingDate);
