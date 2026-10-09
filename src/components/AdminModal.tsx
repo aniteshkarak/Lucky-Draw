@@ -370,7 +370,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <input
                 type="password"
-                placeholder="Enter PIN (Default: dada2026)"
+                placeholder="Enter PIN (Default: 2026)"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 autoFocus
@@ -435,9 +435,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     Emergency Lock
                   </div>
                   <div
-                    className={`text-sm font-bold font-mono mt-1 ${
-                      drawSettings.emergency_closed ? 'text-red-400' : 'text-emerald-400'
-                    }`}
+                    className={`text-sm font-bold font-mono mt-1 ${drawSettings.emergency_closed ? 'text-red-400' : 'text-emerald-400'
+                      }`}
                   >
                     {drawSettings.emergency_closed ? 'ACTIVE' : 'OFF'}
                   </div>
@@ -493,11 +492,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   <button
                     onClick={() => setShowConfirmWinners(true)}
                     disabled={isActionLoading || winnersData.winners_exist}
-                    className={`w-full py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                      winnersData.winners_exist
+                    className={`w-full py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${winnersData.winners_exist
                         ? 'bg-gray-800/80 text-gray-400 border border-gray-700 cursor-not-allowed'
                         : 'gold-button-gradient shadow-gold-glow'
-                    }`}
+                      }`}
                   >
                     <Trophy className="w-4 h-4" />
                     <span>
@@ -682,44 +680,40 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   <button
                     onClick={() => handleChangeStatus('AUTO')}
                     disabled={isActionLoading}
-                    className={`p-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      drawSettings.manual_override === 'AUTO'
+                    className={`p-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${drawSettings.manual_override === 'AUTO'
                         ? 'bg-gold-500/20 border-gold-400 text-gold-200'
                         : 'bg-[#18162c] border-gray-700 text-gray-300 hover:border-gold-500/40'
-                    }`}
+                      }`}
                   >
                     Auto (Time-Based)
                   </button>
                   <button
                     onClick={() => handleChangeStatus('LIVE_DRAW')}
                     disabled={isActionLoading}
-                    className={`p-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      drawSettings.status === 'LIVE_DRAW' || drawSettings.status === 'LIVE'
+                    className={`p-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${drawSettings.status === 'LIVE_DRAW' || drawSettings.status === 'LIVE'
                         ? 'bg-gold-500/20 border-gold-400 text-gold-200'
                         : 'bg-[#18162c] border-gray-700 text-gray-300 hover:border-gold-500/40'
-                    }`}
+                      }`}
                   >
                     🔴 Force Live
                   </button>
                   <button
                     onClick={() => handleChangeStatus('BEFORE_DRAW')}
                     disabled={isActionLoading}
-                    className={`p-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED'
+                    className={`p-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED'
                         ? 'bg-blue-500/20 border-blue-400 text-blue-200'
                         : 'bg-[#18162c] border-gray-700 text-gray-300 hover:border-gold-500/40'
-                    }`}
+                      }`}
                   >
                     🔵 Force Before
                   </button>
                   <button
                     onClick={() => handleChangeStatus('DRAW_CLOSED')}
                     disabled={isActionLoading}
-                    className={`p-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      drawSettings.status === 'DRAW_CLOSED' || drawSettings.status === 'CLOSED'
+                    className={`p-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${drawSettings.status === 'DRAW_CLOSED' || drawSettings.status === 'CLOSED'
                         ? 'bg-purple-500/20 border-purple-400 text-purple-200'
                         : 'bg-[#18162c] border-gray-700 text-gray-300 hover:border-gold-500/40'
-                    }`}
+                      }`}
                   >
                     🔒 Force Closed
                   </button>
@@ -740,11 +734,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   <button
                     onClick={handleToggleEmergencyClose}
                     disabled={isActionLoading}
-                    className={`px-4 py-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all ${
-                      drawSettings.emergency_closed
+                    className={`px-4 py-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all ${drawSettings.emergency_closed
                         ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
                         : 'bg-red-950/80 border-red-500 text-red-300'
-                    }`}
+                      }`}
                   >
                     <Power className="w-4 h-4" />
                     <span>
