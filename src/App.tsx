@@ -26,7 +26,7 @@ import {
 export const App: React.FC = () => {
   // State
   const [drawSettings, setDrawSettings] = useState<DrawSettings>({
-    event_date: '2026-10-10',
+    event_date: '2026-10-25',
     start_time: '20:00:00',
     end_time: '21:00:00',
     timezone: 'Asia/Kolkata',

@@ -48,9 +48,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [showConfirmWinners, setShowConfirmWinners] = useState(false);
 
   // Schedule Management State
-  const [scheduleDate, setScheduleDate] = useState(drawSettings.event_date || '2026-10-10');
-  const [scheduleStartTime, setScheduleStartTime] = useState(drawSettings.start_time?.slice(0, 5) || '09:00');
-  const [scheduleEndTime, setScheduleEndTime] = useState(drawSettings.end_time?.slice(0, 5) || '20:00');
+  const [scheduleDate, setScheduleDate] = useState(drawSettings.event_date || '2026-10-25');
+  const [scheduleStartTime, setScheduleStartTime] = useState(drawSettings.start_time?.slice(0, 5) || '20:00');
+  const [scheduleEndTime, setScheduleEndTime] = useState(drawSettings.end_time?.slice(0, 5) || '21:00');
   const [autoCleanup, setAutoCleanup] = useState(drawSettings.auto_cleanup_after_end ?? true);
 
   // Synchronize state when drawSettings or modal opens

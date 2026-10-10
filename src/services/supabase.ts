@@ -64,10 +64,10 @@ function getMockDB(): MockStorage {
     // Ignore parse error
   }
 
-  // Default schedule: Tomorrow 9:00 AM (09:00) to 8:00 PM (20:00) IST
-  const eventDate = '2026-10-10';
-  const startTime = '09:00:00';
-  const endTime = '20:00:00';
+  // Default schedule: 25 October 2026, 8:00 PM (20:00) to 9:00 PM (21:00) IST
+  const eventDate = '2026-10-25';
+  const startTime = '20:00:00';
+  const endTime = '21:00:00';
   const eventId = `event_${eventDate}_${startTime.slice(0, 2)}${startTime.slice(3, 5)}`;
 
   const initial: MockStorage = {
@@ -128,9 +128,9 @@ function calculateEffectiveStatus(db: MockStorage): {
   nowIst: Date;
   eventId: string;
 } {
-  const eventDate = db.eventDate || '2026-10-10';
-  const startTime = db.startTime || '09:00:00';
-  const endTime = db.endTime || '20:00:00';
+  const eventDate = db.eventDate || '2026-10-25';
+  const startTime = db.startTime || '20:00:00';
+  const endTime = db.endTime || '21:00:00';
   const eventId = db.eventId || `event_${eventDate}_${startTime.replace(/:/g, '').slice(0, 4)}_${endTime.replace(/:/g, '').slice(0, 4)}`;
 
   const nowIst = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
