@@ -20,7 +20,6 @@ import {
 import {
   getEventParticipation,
   saveEventParticipation,
-  clearFinalizedEventParticipation,
   handleNewEventTransition,
 } from './utils/storage';
 
@@ -28,8 +27,8 @@ export const App: React.FC = () => {
   // State
   const [drawSettings, setDrawSettings] = useState<DrawSettings>({
     event_date: '2026-10-10',
-    start_time: '09:00:00',
-    end_time: '20:00:00',
+    start_time: '20:00:00',
+    end_time: '21:00:00',
     timezone: 'Asia/Kolkata',
     status: 'BEFORE_DRAW',
     server_time_ist: new Date().toISOString(),
@@ -79,7 +78,7 @@ export const App: React.FC = () => {
         settings.event_id ||
         `event_${settings.event_date}_${settings.start_time.replace(/:/g, '').slice(0, 4)}_${settings.end_time.replace(/:/g, '').slice(0, 4)}`;
 
-      // Ensure new event transition handles previous events (Requirement 5 & 8)
+      // Ensure new event transition handles previous events
       handleNewEventTransition(eventId);
 
       setDrawSettings(settings);
@@ -87,24 +86,18 @@ export const App: React.FC = () => {
       setTotalCount(partData.total_count);
       setWinnersData(winData);
 
-      // Requirement 4 & 6: Automatically clear previous event's local records ONLY when winners are announced & finalized
-      if (winData.winners_exist && settings.status === 'WINNERS_PUBLISHED') {
-        clearFinalizedEventParticipation(eventId);
-        setLastUserTicket(null);
+      // Check localStorage for participation record for THIS specific event ID
+      const localRecord = getEventParticipation(eventId);
+      if (localRecord) {
+        setLastUserTicket({
+          serial_no: 0,
+          event_id: localRecord.event_id,
+          name: localRecord.name,
+          lucky_number: localRecord.lucky_number,
+          played_at: localRecord.played_at,
+        });
       } else {
-        // Requirement 2 & 3: Check localStorage for participation record for THIS specific event ID
-        const localRecord = getEventParticipation(eventId);
-        if (localRecord) {
-          setLastUserTicket({
-            serial_no: 0,
-            event_id: localRecord.event_id,
-            name: localRecord.name,
-            lucky_number: localRecord.lucky_number,
-            played_at: localRecord.played_at,
-          });
-        } else {
-          setLastUserTicket(null);
-        }
+        setLastUserTicket(null);
       }
     } catch (err) {
       console.error('Failed to fetch draw data:', err);
@@ -125,7 +118,7 @@ export const App: React.FC = () => {
     };
   }, [fetchData]);
 
-  // Update countdown every second
+  // Update countdown every second and handle automatic transitions
   useEffect(() => {
     const updateCountdown = () => {
       let target: Date;
@@ -142,12 +135,18 @@ export const App: React.FC = () => {
 
       // Automatic real-time status transitions:
       // 1. When start countdown reaches 0: auto-unlock from BEFORE_DRAW to LIVE_DRAW
-      // 2. When live draw countdown reaches 0: auto-lock from LIVE_DRAW to DRAW_CLOSED
+      // 2. When live draw countdown reaches 0: auto-lock from LIVE_DRAW to DRAW_CLOSED and select winners
       if (remaining.isPast) {
         if (drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED') {
           fetchData();
-        } else if (drawSettings.status === 'LIVE_DRAW' || drawSettings.status === 'LIVE') {
-          fetchData();
+        } else if (drawSettings.status === 'LIVE_DRAW' || drawSettings.status === 'LIVE' || drawSettings.status === 'DRAW_CLOSED') {
+          if (!winnersData.winners_exist && totalCount > 0) {
+            apiService.selectWinners().finally(() => {
+              fetchData();
+            });
+          } else {
+            fetchData();
+          }
         }
       }
     };
@@ -155,7 +154,15 @@ export const App: React.FC = () => {
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, [drawSettings.status, drawSettings.event_date, drawSettings.start_time, drawSettings.end_time, fetchData]);
+  }, [
+    drawSettings.status,
+    drawSettings.event_date,
+    drawSettings.start_time,
+    drawSettings.end_time,
+    winnersData.winners_exist,
+    totalCount,
+    fetchData,
+  ]);
 
   const handleParticipationSuccess = (
     participant: { name: string; lucky_number: number; played_at: string },
@@ -165,7 +172,7 @@ export const App: React.FC = () => {
       drawSettings.event_id ||
       `event_${drawSettings.event_date}_${drawSettings.start_time.replace(/:/g, '').slice(0, 4)}_${drawSettings.end_time.replace(/:/g, '').slice(0, 4)}`;
 
-    // Save participation record to localStorage under lucky_draw_participation_<event_id> (Requirement 2)
+    // Save participation record to localStorage under lucky_draw_participation_<event_id>
     saveEventParticipation(currentEventId, {
       name: participant.name,
       lucky_number: participant.lucky_number,
@@ -189,7 +196,7 @@ export const App: React.FC = () => {
   };
 
   const handleCtaClick = () => {
-    if (drawSettings.status === 'WINNERS_PUBLISHED') {
+    if (drawSettings.status === 'WINNERS_PUBLISHED' || winnersData.winners_exist) {
       const winEl = document.getElementById('winners-section');
       if (winEl) {
         winEl.scrollIntoView({ behavior: 'smooth' });
@@ -212,7 +219,7 @@ export const App: React.FC = () => {
 
   const isLive = drawSettings.status === 'LIVE_DRAW' || drawSettings.status === 'LIVE';
   const isBefore = drawSettings.status === 'BEFORE_DRAW' || drawSettings.status === 'SCHEDULED';
-  const isWinners = drawSettings.status === 'WINNERS_PUBLISHED';
+  const isWinners = drawSettings.status === 'WINNERS_PUBLISHED' || winnersData.winners_exist;
 
   return (
     <div className="min-h-screen bg-[#090810] text-[#FAFAF9] flex flex-col relative overflow-x-hidden selection:bg-gold-500 selection:text-black">
@@ -226,10 +233,10 @@ export const App: React.FC = () => {
           isLive
             ? '🔴 LIVE DRAW'
             : isBefore
-            ? 'Draw Scheduled'
-            : isWinners
-            ? '🏆 Winners Declared'
-            : 'Draw Closed'
+              ? 'Draw Scheduled'
+              : isWinners
+                ? '🏆 Winners Declared'
+                : 'Draw Closed'
         }
       />
 
@@ -249,10 +256,16 @@ export const App: React.FC = () => {
           onCtaClick={handleCtaClick}
         />
 
-        {/* 2. Winner Announcement Podium (If published or closed) */}
-        {(drawSettings.status === 'WINNERS_PUBLISHED' || winnersData.winners_exist) && (
-          <WinnerRevealSection winnersData={winnersData} status={drawSettings.status} />
-        )}
+        {/* 2. Winner Announcement Podium */}
+        <WinnerRevealSection
+          winnersData={winnersData}
+          status={drawSettings.status}
+          endTime={drawSettings.end_time}
+          startTime={drawSettings.start_time}
+          eventDate={drawSettings.event_date}
+          totalParticipants={totalCount}
+          isLoading={isLoading}
+        />
 
         {/* 3. Participation Form */}
         <ParticipationForm
@@ -264,12 +277,7 @@ export const App: React.FC = () => {
           eventDate={drawSettings.event_date}
         />
 
-        {/* 4. Pre-winners preview (if not yet published) */}
-        {!winnersData.winners_exist && drawSettings.status !== 'WINNERS_PUBLISHED' && (
-          <WinnerRevealSection winnersData={winnersData} status={drawSettings.status} />
-        )}
-
-        {/* 5. Live Participant Board */}
+        {/* 4. Live Participant Board */}
         <PublicParticipantList
           participants={participants}
           totalCount={totalCount}
@@ -277,12 +285,16 @@ export const App: React.FC = () => {
           onRefresh={fetchData}
         />
 
-        {/* 6. Wedding Wishes & Blessings */}
+        {/* 5. Wedding Wishes & Blessings */}
         <WeddingWishesSection />
       </main>
 
       {/* Footer */}
-      <Footer />
+      <Footer
+        eventDate={drawSettings.event_date}
+        startTime={drawSettings.start_time}
+        endTime={drawSettings.end_time}
+      />
 
       {/* Modals */}
       <LuckyTicketModal
@@ -290,6 +302,9 @@ export const App: React.FC = () => {
         onClose={() => setIsTicketOpen(false)}
         participant={activeTicket}
         isAlreadyRegistered={isAlreadyTicket}
+        eventDate={drawSettings.event_date}
+        startTime={drawSettings.start_time}
+        endTime={drawSettings.end_time}
       />
 
       <AdminModal

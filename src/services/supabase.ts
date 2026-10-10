@@ -1,6 +1,5 @@
 import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 import { DrawSettings, DrawState, Participant, ParticipationResult, WinnersData } from '../types';
-import { parseISTDate } from '../utils/time';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -15,12 +14,12 @@ const isConfigured = Boolean(
 
 export const supabase: SupabaseClient | null = isConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
-      realtime: {
-        params: {
-          eventsPerSecond: 10,
-        },
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
       },
-    })
+    },
+  })
   : null;
 
 // ==============================================================================
@@ -108,6 +107,18 @@ function notifySubscribers() {
   });
 }
 
+// Deterministic pseudo-random generator for consistent winner selection across devices
+function getSeededRandom(seed: string) {
+  let s = 0;
+  for (let i = 0; i < seed.length; i++) {
+    s = (s * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return function () {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return (s >>> 0) / 4294967296;
+  };
+}
+
 // Helper to compute effective draw status dynamically based on IST time
 function calculateEffectiveStatus(db: MockStorage): {
   status: DrawState;
@@ -147,10 +158,10 @@ function calculateEffectiveStatus(db: MockStorage): {
   const effectiveStatus: DrawState = db.winners
     ? 'WINNERS_PUBLISHED'
     : db.emergencyClosed
-    ? 'DRAW_CLOSED'
-    : db.statusOverride === 'AUTO' || !db.statusOverride
-    ? timeBasedStatus
-    : db.statusOverride;
+      ? 'DRAW_CLOSED'
+      : db.statusOverride === 'AUTO' || !db.statusOverride
+        ? timeBasedStatus
+        : db.statusOverride;
 
   return {
     status: effectiveStatus,
@@ -182,23 +193,28 @@ export const apiService = {
    * Fetch current draw status, settings, total participants, and IST server time
    */
   async getDrawStatus(): Promise<DrawSettings> {
+    const db = getMockDB();
+    const { status: effectiveStatus, eventDate, startTime, endTime, nowIst, eventId } = calculateEffectiveStatus(db);
+
+    let totalCount = db.participants.length;
+
     if (supabase) {
       try {
         const { data, error } = await supabase.rpc('get_draw_status');
         if (!error && data) {
-          const eventDate = data.event_date || '2026-10-10';
-          const startTime = data.start_time || '09:00:00';
-          const endTime = data.end_time || '20:00:00';
-          const eventId = data.event_id || `event_${eventDate}_${startTime.replace(/:/g, '').slice(0, 4)}_${endTime.replace(/:/g, '').slice(0, 4)}`;
+          const sDate = data.event_date || eventDate;
+          const sTime = data.start_time || startTime;
+          const eTime = data.end_time || endTime;
+          const eId = data.event_id || `event_${sDate}_${sTime.replace(/:/g, '').slice(0, 4)}_${eTime.replace(/:/g, '').slice(0, 4)}`;
 
           return {
-            event_id: eventId,
-            event_date: eventDate,
-            start_time: startTime,
-            end_time: endTime,
+            event_id: eId,
+            event_date: sDate,
+            start_time: sTime,
+            end_time: eTime,
             timezone: data.timezone || 'Asia/Kolkata',
             status: data.status as DrawState,
-            server_time_ist: data.server_time_ist || new Date().toISOString(),
+            server_time_ist: data.server_time_ist || nowIst.toISOString(),
             total_participants: data.total_participants || 0,
             winners_selected: Boolean(data.winners_selected),
             emergency_closed: Boolean(data.emergency_closed),
@@ -207,30 +223,26 @@ export const apiService = {
           };
         }
       } catch (err) {
-        console.warn('Supabase get_draw_status error, falling back to local state:', err);
+        console.warn('Supabase get_draw_status error, falling back to participants check:', err);
+      }
+
+      // If get_draw_status failed, fetch real total count from Supabase
+      try {
+        const { total_count } = await apiService.getPublicParticipants('', 1, 0);
+        if (typeof total_count === 'number' && total_count > 0) {
+          totalCount = total_count;
+        }
+      } catch {
+        // ignore
       }
     }
 
-    // Mock fallback
-    const db = getMockDB();
-    const autoCleanup = db.autoCleanupAfterEnd ?? true;
-    const { status: effectiveStatus, eventDate, startTime, endTime, nowIst, eventId } = calculateEffectiveStatus(db);
+    const savedWinners = localStorage.getItem(`lucky_draw_winners_${eventId}`);
+    const hasWinners = Boolean(db.winners) || Boolean(savedWinners);
 
-    // Automatic Data Cleanup: Only delete data 2 FULL HOURS after the draw end time
-    const endDateTime = parseISTDate(eventDate, endTime);
-    const twoHoursAfterEndMs = endDateTime.getTime() + 2 * 60 * 60 * 1000;
-    const nowMs = new Date().getTime();
-
-    if (autoCleanup && nowMs >= twoHoursAfterEndMs) {
-      if (db.participants.length > 0 || db.winners) {
-        db.participants = [];
-        db.winners = null;
-        db.statusOverride = 'SCHEDULED';
-        db.eventId = `event_${Date.now()}`;
-        saveMockDB(db);
-        notifySubscribers();
-      }
-    }
+    const finalStatus: DrawState = hasWinners
+      ? 'WINNERS_PUBLISHED'
+      : effectiveStatus;
 
     return {
       event_id: eventId,
@@ -238,12 +250,12 @@ export const apiService = {
       start_time: startTime,
       end_time: endTime,
       timezone: 'Asia/Kolkata',
-      status: effectiveStatus,
+      status: finalStatus,
       server_time_ist: nowIst.toISOString(),
-      total_participants: db.participants.length,
-      winners_selected: db.winners !== null,
+      total_participants: totalCount,
+      winners_selected: hasWinners,
       emergency_closed: db.emergencyClosed,
-      auto_cleanup_after_end: autoCleanup,
+      auto_cleanup_after_end: db.autoCleanupAfterEnd ?? false,
       manual_override: db.statusOverride || 'AUTO',
     };
   },
@@ -446,11 +458,11 @@ export const apiService = {
   /**
    * Fetch public winners (Immutable 1st, 2nd, 3rd)
    */
-  async getPublicWinners(): Promise<WinnersData> {
+  async getPublicWinners(targetEventId?: string): Promise<WinnersData> {
     if (supabase) {
       try {
         const { data, error } = await supabase.rpc('get_public_winners');
-        if (!error && data) {
+        if (!error && data && data.winners_exist && data.first_prize) {
           return data as WinnersData;
         }
       } catch (err) {
@@ -458,20 +470,76 @@ export const apiService = {
       }
     }
 
-    // Mock fallback
     const db = getMockDB();
-    if (!db.winners) {
-      return { winners_exist: false };
+    const { status, eventId } = calculateEffectiveStatus(db);
+    const activeEventId = targetEventId || eventId;
+
+    // Check if we have winners saved in localStorage for this event
+    const savedWinnersRaw = localStorage.getItem(`lucky_draw_winners_${activeEventId}`);
+    if (savedWinnersRaw) {
+      try {
+        const parsed = JSON.parse(savedWinnersRaw);
+        if (parsed && parsed.winners_exist && parsed.first_prize) {
+          return parsed as WinnersData;
+        }
+      } catch {
+        // ignore
+      }
     }
 
-    return {
-      event_id: db.winners.event_id,
-      winners_exist: true,
-      selected_at: db.winners.selected_at,
-      first_prize: db.winners.first_prize,
-      second_prize: db.winners.second_prize,
-      third_prize: db.winners.third_prize,
-    };
+    if (db.winners && (db.winners.event_id === activeEventId || !db.winners.event_id)) {
+      return {
+        event_id: db.winners.event_id || activeEventId,
+        winners_exist: true,
+        selected_at: db.winners.selected_at,
+        first_prize: db.winners.first_prize,
+        second_prize: db.winners.second_prize,
+        third_prize: db.winners.third_prize,
+      };
+    }
+
+    // If the draw is CLOSED / WINNERS_PUBLISHED, automatically resolve winners from participants
+    if (status === 'DRAW_CLOSED' || status === 'CLOSED' || status === 'WINNERS_PUBLISHED') {
+      const { participants } = await apiService.getPublicParticipants('', 1000, 0);
+      if (participants && participants.length > 0) {
+        // Deterministic pseudo-random selection seeded by activeEventId:
+        // Guaranteed to produce the exact same 1st, 2nd, 3rd winners across all browsers/devices
+        const rng = getSeededRandom(activeEventId);
+        const shuffled = [...participants].sort(() => 0.5 - rng());
+        const first = shuffled[0];
+        const second = shuffled[1] || null;
+        const third = shuffled[2] || null;
+
+        const resolvedWinners: WinnersData = {
+          event_id: activeEventId,
+          winners_exist: true,
+          selected_at: new Date().toISOString(),
+          first_prize: { name: first.name, lucky_number: first.lucky_number },
+          second_prize: second ? { name: second.name, lucky_number: second.lucky_number } : null,
+          third_prize: third ? { name: third.name, lucky_number: third.lucky_number } : null,
+        };
+
+        try {
+          localStorage.setItem(`lucky_draw_winners_${activeEventId}`, JSON.stringify(resolvedWinners));
+        } catch {
+          // ignore
+        }
+
+        db.winners = {
+          event_id: activeEventId,
+          first_prize: resolvedWinners.first_prize || null,
+          second_prize: resolvedWinners.second_prize || null,
+          third_prize: resolvedWinners.third_prize || null,
+          selected_at: resolvedWinners.selected_at || new Date().toISOString(),
+        };
+        db.statusOverride = 'WINNERS_PUBLISHED';
+        saveMockDB(db);
+
+        return resolvedWinners;
+      }
+    }
+
+    return { winners_exist: false };
   },
 
   /**
@@ -489,7 +557,8 @@ export const apiService = {
           p_admin_pin: adminPin || null,
           p_force: force,
         });
-        if (!error && data) {
+        if (!error && data && data.success && data.winners?.first_prize) {
+          notifySubscribers();
           return data;
         }
       } catch (err) {
@@ -497,25 +566,23 @@ export const apiService = {
       }
     }
 
-    // Mock fallback
     const db = getMockDB();
-    if (db.winners) {
+    const { eventId } = calculateEffectiveStatus(db);
+
+    // Check if already selected
+    const existing = await apiService.getPublicWinners(eventId);
+    if (existing.winners_exist && existing.first_prize) {
       return {
         success: true,
         already_selected: true,
         message: 'Winners have already been drawn and are permanently locked.',
-        winners: {
-          event_id: db.winners.event_id,
-          winners_exist: true,
-          selected_at: db.winners.selected_at,
-          first_prize: db.winners.first_prize,
-          second_prize: db.winners.second_prize,
-          third_prize: db.winners.third_prize,
-        },
+        winners: existing,
       };
     }
 
-    if (db.participants.length === 0) {
+    // Fetch real participants (from Supabase or local)
+    const { participants } = await apiService.getPublicParticipants('', 1000, 0);
+    if (!participants || participants.length === 0) {
       return {
         success: false,
         message: 'No participants found. At least 1 participant is required to draw winners.',
@@ -523,17 +590,32 @@ export const apiService = {
     }
 
     // Shuffle and pick up to 3 unique winners
-    const shuffled = [...db.participants].sort(() => 0.5 - Math.random());
+    const shuffled = [...participants].sort(() => 0.5 - Math.random());
     const first = shuffled[0];
     const second = shuffled[1] || null;
     const third = shuffled[2] || null;
 
-    db.winners = {
-      event_id: db.eventId,
+    const winnersData: WinnersData = {
+      event_id: eventId,
+      winners_exist: true,
+      selected_at: new Date().toISOString(),
       first_prize: { name: first.name, lucky_number: first.lucky_number },
       second_prize: second ? { name: second.name, lucky_number: second.lucky_number } : null,
       third_prize: third ? { name: third.name, lucky_number: third.lucky_number } : null,
-      selected_at: new Date().toISOString(),
+    };
+
+    try {
+      localStorage.setItem(`lucky_draw_winners_${eventId}`, JSON.stringify(winnersData));
+    } catch {
+      // ignore
+    }
+
+    db.winners = {
+      event_id: eventId,
+      first_prize: winnersData.first_prize || null,
+      second_prize: winnersData.second_prize || null,
+      third_prize: winnersData.third_prize || null,
+      selected_at: winnersData.selected_at || new Date().toISOString(),
     };
     db.statusOverride = 'WINNERS_PUBLISHED';
     saveMockDB(db);
@@ -542,14 +624,7 @@ export const apiService = {
     return {
       success: true,
       message: 'Winners drawn successfully!',
-      winners: {
-        event_id: db.winners.event_id,
-        winners_exist: true,
-        selected_at: db.winners.selected_at,
-        first_prize: db.winners.first_prize,
-        second_prize: db.winners.second_prize,
-        third_prize: db.winners.third_prize,
-      },
+      winners: winnersData,
     };
   },
 

@@ -1,7 +1,14 @@
 import React from 'react';
 import { Heart, Sparkles, Phone } from 'lucide-react';
+import { formatDisplayDate, formatTimeRange } from '../utils/time';
 
-export const Footer: React.FC = () => {
+interface FooterProps {
+  eventDate?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export const Footer: React.FC<FooterProps> = ({ eventDate, startTime, endTime }) => {
   return (
     <footer className="w-full border-t border-gold-500/20 bg-[#07060d] py-10 px-4 text-center text-gray-400 space-y-4">
       {/* Wedding Branding */}
@@ -14,7 +21,7 @@ export const Footer: React.FC = () => {
       </div>
 
       <p className="text-xs sm:text-sm text-gold-300/80 font-medium">
-        25 October 2026 • 8:00 PM – 9:00 PM IST
+        {formatDisplayDate(eventDate)} • {formatTimeRange(startTime, endTime)}
       </p>
 
       <div className="flex items-center justify-center gap-1.5 text-xs text-gray-300">

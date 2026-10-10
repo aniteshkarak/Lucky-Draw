@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { X, Copy, Check, Sparkles, ShieldCheck } from 'lucide-react';
-import { formatPlayedAt } from '../utils/time';
+import { formatPlayedAt, formatDisplayDate, formatTimeRange, formatDisplayTime } from '../utils/time';
 import { soundFx } from '../utils/audio';
 
 interface LuckyTicketModalProps {
@@ -14,6 +14,9 @@ interface LuckyTicketModalProps {
     played_at: string;
   } | null;
   isAlreadyRegistered?: boolean;
+  eventDate?: string;
+  startTime?: string;
+  endTime?: string;
 }
 
 export const LuckyTicketModal: React.FC<LuckyTicketModalProps> = ({
@@ -21,6 +24,9 @@ export const LuckyTicketModal: React.FC<LuckyTicketModalProps> = ({
   onClose,
   participant,
   isAlreadyRegistered,
+  eventDate,
+  startTime,
+  endTime,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -120,7 +126,9 @@ export const LuckyTicketModal: React.FC<LuckyTicketModalProps> = ({
             <h3 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-white tracking-wide">
               Reon & Priyanka Wedding Lucky Draw
             </h3>
-            <p className="text-xs text-gold-300/80 mt-0.5">25 October 2026 • 8:00 PM – 9:00 PM IST</p>
+            <p className="text-xs text-gold-300/80 mt-0.5">
+              {formatDisplayDate(eventDate)} • {formatTimeRange(startTime, endTime)}
+            </p>
 
             {/* Dashed Separator */}
             <div className="my-5 border-t border-dashed border-gold-500/40 relative">
@@ -166,7 +174,7 @@ export const LuckyTicketModal: React.FC<LuckyTicketModalProps> = ({
 
             {/* Keep Safe Advice */}
             <p className="mt-4 text-xs text-gray-300 leading-relaxed">
-              "Keep this number safe until the lucky draw results are announced at 9:00 PM IST."
+              "Keep this number safe until the lucky draw results are announced at {formatDisplayTime(endTime || '21:00:00')} IST."
             </p>
 
             {/* Actions */}
